@@ -1,11 +1,12 @@
 import ast
-from typing import BaseModel
+from pydantic import BaseModel, PrivateAttr
 
 class Parameter(BaseModel):
     name: str
-    type: str
+    pytype: str
         
-class Function:
+class Function(BaseModel):
     name: str
-    params: list[Parameter]
-    ast_object: ast.FunctionDef
+    return_pytype: str | None
+    params: list[Parameter] | None
+    _ast_object: ast.FunctionDef = PrivateAttr()

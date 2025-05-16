@@ -1,20 +1,27 @@
 import re
+import sys
 from structure import Function
 
 class Linter:
-    def __init__(self, funcs):
+    def __init__(self):
         self.typed_vars = {}
         self.typed_funcs = {}
-        self.funcs = funcs
 
     def add_var(self, name, v_type):
         self.typed_vars[name] = v_type
+        
+    def remove_var(self, name):
+        del self.typed_vars[name]
 
     def get_var_type(self, name):
         return self.typed_vars[name]
 
     def add_func(self, name, f_type):
         self.typed_funcs[name] = f_type
+
+    def get_func_type(self, name):
+        return self.typed_funcs[name]
+
 
     def get_type_from_pyfunction(self, func_name, full_str):
         if func_name == "map":
@@ -30,23 +37,31 @@ class Linter:
             ("dict", r"\{.+:{1,}.*\}|^dict\((.*)\)"),
             ("tuple", r".*,.*|^tuple\((.*)\)"),
         ]
-    
-    def hint_func(self, func_name):
-        func_obj = self.declared_funcs[func_name]
 
-    def get_type_from_str(self, s):
+    def is_func(self, string: str):
         pattern_func = r"^(\w+)\(.*\)"
         # Then this is a function if match
-        match_func = re.match(pattern_func, s)
-        if match_func:
-            func_name = match_func[1]
-            if func_name in self.typed_funcs:
-                return self.typed_funcs[func_name]
-            if func_name in self.declared_funcs:
-                return self.hint_func(func_name)
-            
-            return self.get_type_from_pyfunction(func_name, s)
+        match_func = re.match(pattern_func, string)
+        return match_func
 
+    def pattern_constants(self):
+        return [
+            r"\bNone\b",
+            r"\bTrue\b",
+            r"\bFalse\b",
+            r"\d+",
+            r"float\(.+\)",
+            r"int\(.+\)",
+            r"\d+\.\d*([eE][+-]?\d+)?"
+        ]
+    
+    # Except for functions
+    def get_pytype_from_str(self, s):
+        for pattern in self.pattern_constants():
+            match = re.match(pattern, s)
+            if match:
+                return type(eval(s)).__name__
+        
         pattern_var = r"(\w+)"
         # Then this is a variable
         match_var = re.match(pattern_var, s)
@@ -59,9 +74,10 @@ class Linter:
             if match:
                 return t_name
 
+        print("DEBUG: ", s, file=sys.stderr)
         return type(eval(s)).__name__
 
-    def python_to_cpp_type(self, t_name):
+    def python_to_cpp_type(self, t_name: str):
         mp = {
             "int": "int",
             "float": "float",
@@ -74,9 +90,9 @@ class Linter:
             "None": "void",
         }
         if t_name not in mp:
-            raise NotImplementedError(f"Type {t_name} not implemented")
+            raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
         return mp[t_name]
 
 if __name__ == "__main__":
     linter = Linter()
-    linter.get_type_from_str("map(int())")
+    linter.get_pytype_from_str("map(int())")
