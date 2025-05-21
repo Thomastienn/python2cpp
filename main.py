@@ -3,6 +3,7 @@ import ast
 import copy
 from structure import Function
 from processor import ExprParser
+from visitctx import VisitContext
 
 # tree = ast.parse("res = [[0 for j in range(len(b[0]))] for i in range(len(a))]")
 with open('python.py', 'r') as f:
@@ -25,13 +26,13 @@ for exp in tree.body:
             params=[],
         )
         myf._ast_object = exp
-        funcs[exp.name] = myf     
+        funcs[exp.name] = myf
     else:
         normal_exps.append(exp)
 
 # Process the global scope first to know the type of arguments of functions
 for exp in normal_exps:
-    printer.visit(exp, allow_print=False)
+    printer.visit(exp, VisitContext(allow_print=False))
 
 print(
     """
@@ -52,8 +53,8 @@ int main() {
 )
 
 for exp in normal_exps:
-    printer.visit(exp, current_indent=1)
-    
+    printer.visit(exp, VisitContext(allow_print=True))
+
 print(
     """
     return 0;

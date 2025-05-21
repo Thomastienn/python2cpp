@@ -1,20 +1,37 @@
+import ast
 import re
 import sys
 from structure import Function
+from collections import defaultdict
 
 class Linter:
+    TYPES = {
+        "int": "int",
+        "float": "float",
+        "bool": "bool",
+        "str": "string",
+        "list": "vector",
+        "dict": "map",
+        "set": "set",
+        "tuple": "tuple",
+        "None": "void",
+    }
     def __init__(self):
-        self.typed_vars = {}
+        self.typed_vars = defaultdict(dict)
         self.typed_funcs = {}
+        self.typed_nested_list = defaultdict(lambda : defaultdict(list))
 
-    def add_var(self, name, v_type):
-        self.typed_vars[name] = v_type
+    def add_var(self, name, v_type, scope="global"):
+        self.typed_vars[scope][name] = v_type
+
+    def add_nested_list(self, name, v_type, scope="global"):
+        self.typed_nested_list[scope][name].append(v_type)
         
-    def remove_var(self, name):
-        del self.typed_vars[name]
+    def remove_var(self, name, scope="global"):
+        del self.typed_vars[scope][name]
 
-    def get_var_type(self, name):
-        return self.typed_vars[name]
+    def get_var_type(self, name, scope="global"):
+        return self.typed_vars[scope][name]
 
     def add_func(self, name, f_type):
         self.typed_funcs[name] = f_type
@@ -56,7 +73,7 @@ class Linter:
         ]
     
     # Except for functions
-    def get_pytype_from_str(self, s):
+    def get_pytype_from_str(self, s, visitor):
         for pattern in self.pattern_constants():
             match = re.match(pattern, s)
             if match:
@@ -74,24 +91,40 @@ class Linter:
             if match:
                 return t_name
 
-        print("DEBUG: ", s, file=sys.stderr)
-        return type(eval(s)).__name__
+        try:
+            return_type = type(eval(s)).__name__
+        except BaseException as e:
+            return_type = visitor.visit(ast.parse(s).body[0].value, True)
+        return return_type
 
     def python_to_cpp_type(self, t_name: str):
-        mp = {
-            "int": "int",
-            "float": "float",
-            "bool": "bool",
-            "str": "string",
-            "list": "vector",
-            "dict": "map",
-            "set": "set",
-            "tuple": "tuple",
-            "None": "void",
-        }
-        if t_name not in mp:
+        if t_name is None:
+            return "void"
+        if t_name not in Linter.TYPES:
             raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
-        return mp[t_name]
+        return Linter.TYPES[t_name]
+
+    def get_subscript_type(self, base_name, size, scope="global"):
+        return self.typed_nested_list[scope][base_name][size-1]
+
+    def get_binop_type(self, pytype_left, pytype_right, op: str):
+        if pytype_left not in Linter.TYPES:
+            pytype_left = self.get_var_type(pytype_left)
+        if pytype_right not in Linter.TYPES:
+            pytype_right = self.get_var_type(pytype_right)
+        
+        case = (pytype_left, pytype_right)
+
+        if "list" in case and "int" in case:
+            if op == "*":
+                return "list"
+            raise NotImplementedError
+
+        if "float" in case:
+            return "float"
+
+        return pytype_left
+
 
 if __name__ == "__main__":
     linter = Linter()
