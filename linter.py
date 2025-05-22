@@ -15,10 +15,12 @@ class Linter:
         "dict": "map",
         "set": "set",
         "tuple": "tuple",
+        "pair": "pair", # This doesnt exist but i want to make sure everything doesn't break.
         "None": "void",
     }
     def __init__(self):
         self.typed_vars = defaultdict(dict)
+        self.has_typed = defaultdict(lambda : defaultdict(bool))
         self.typed_funcs = {}
 
     def add_var(self, name, v_type, scope="global"):
@@ -39,7 +41,6 @@ class Linter:
 
         
     def get_var_type(self, name, scope="global") -> str | list[str]:
-        print(name, scope, file=sys.stderr)
         try:
             return_type = self.typed_vars[scope][name]
         except KeyError:
@@ -55,13 +56,19 @@ class Linter:
     def get_func_type(self, name):
         return self.typed_funcs[name]
 
-
-    def get_type_from_pyfunction(self, func_name, full_str):
+    def get_type_from_pyfunction(self, func_node: ast.Call) -> str:
+        """
+            Return the return pytype of a builtin function
+        """
+        func_name = func_node.func.id
         if func_name == "map":
-            regex_map = r"map\((\w+),.+\)"
-            type_to = re.match(regex_map, full_str)[1]
-            return self.python_to_cpp_type(type_to)
-        raise NotImplementedError(f"Function {func_name} not implemented")
+            return func_node.args[0].id
+        elif func_name == "input":
+            return "str"
+        elif func_name == "len":
+            return "int"
+
+        return func_name
 
     def pattern_pytype(self) -> list:
         return [
@@ -94,7 +101,12 @@ class Linter:
         if isinstance(t_name, list):
             if len(t_name) == 1:
                 return Linter.TYPES[t_name[0]]
-            return f"{Linter.TYPES[t_name[0]]}<{self.python_to_cpp_type(t_name[1:])}>"
+            container_type = t_name[0]
+            if container_type in ["list", "tuple", "set"]:
+                return f"{Linter.TYPES[container_type]}<{self.python_to_cpp_type(t_name[1:])}>"
+            if container_type == "pair":
+                return f"pair<{self.python_to_cpp_type(t_name[1])}, {self.python_to_cpp_type(t_name[2])}>"
+            raise NotImplementedError(f"{container_type} not implemented")
         if t_name not in Linter.TYPES:
             raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
         return Linter.TYPES[t_name]
@@ -113,7 +125,7 @@ class Linter:
         if "list" in case and "int" in case:
             if op == "*":
                 return "list"
-            raise NotImplementedError
+            raise SyntaxError(f"Cannot add int and list not implemented")
             
         if "str" in case and "int" in case:
             return "str"

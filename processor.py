@@ -1,6 +1,8 @@
+import os
 import sys
 import ast
 from linter import Linter
+from constants import PROD
 from visitor import ReprVisitor
 from structure import Function, VisitContext
 
@@ -13,6 +15,7 @@ class ExprParser:
         self.linter = Linter()
         self.repr = ReprVisitor(self.linter)
         self.allow_print = True
+        self.debug = open((os.devnull if PROD else "debug.out"), "w")
 
     def print_line(self, line: str, current_indent: int, end="\n", tab: bool = True):
         if self.allow_print:
@@ -29,10 +32,11 @@ class ExprParser:
         original = self.allow_print
         self.allow_print = allow_print
         
-        print(self.linter.typed_vars, file=sys.stderr)
-        print(visit_ctx, file=sys.stderr)
-        print(node, file=sys.stderr)
-        print("-" * 20, file=sys.stderr)
+        print(self.linter.typed_vars, file=self.debug)
+        print(visit_ctx, file=self.debug)
+        print(node, file=self.debug)
+        print(self.funcs, file=self.debug)
+        print("-" * 20, file=self.debug)
         result = visitor(node, VisitContext(
             current_indent=visit_ctx.current_indent,
             allow_print=allow_print,
@@ -45,16 +49,18 @@ class ExprParser:
         print("NOT IMPLEMENTED: ",node, file=sys.stderr)
         return
 
-    def find_type_func(self, func_name, full_str, func_node, visit_ctx: VisitContext):
-        match_func = self.linter.is_func(full_str)
-        if match_func:
-            func_name = match_func[1]
-            if func_name in self.linter.typed_funcs:
-                return self.linter.typed_funcs[func_name]
-            if func_name in self.funcs:
-                return self.visit(func_node, visit_ctx)
+    def find_type_func(self, func_node, visit_ctx: VisitContext):
+        func_name = func_node.func.id
+        if func_name in self.linter.typed_funcs:
+            return self.linter.typed_funcs[func_name]
+        if func_name in self.funcs:
+            return self.visit(func_node, visit_ctx)
 
-            return self.linter.get_type_from_pyfunction(func_name, full_str)
+        return self.linter.get_type_from_pyfunction(func_node)
+
+    def set_type(self, name, scope):
+        if self.allow_print:
+            self.linter.has_typed[scope][name] = True
 
     def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
         # self.print_line("ASSIGN: ", current_indent)
@@ -64,7 +70,7 @@ class ExprParser:
 
         match_func_val = self.linter.is_func(value_str)
         if match_func_val:
-            type_name_val = self.find_type_func(match_func_val[1], value_str, value, visit_ctx)
+            type_name_val = self.find_type_func(value, visit_ctx)
         else:
             type_name_val = self.repr.visit(value, return_type=True, scope=visit_ctx.scope) 
 
@@ -72,14 +78,27 @@ class ExprParser:
         for target in targets:
             target_str = self.repr.visit(target, scope=visit_ctx.scope)
 
+            name = None
+            while isinstance(target, ast.Subscript):
+                target = target.value
+                if isinstance(target, ast.Name):
+                    name = target.id
+                    
             # It's a tuple of variables
-            if "," in target_str:
+            is_unpacking = "," in target_str
+            if is_unpacking:
                 for target_s in target_str.split(","):
                     self.linter.add_var(target_s, type_name_val, scope=visit_ctx.scope)
             else:
-                self.linter.add_var(target_str, type_name_val, scope=visit_ctx.scope)
+                if name is None:
+                    self.linter.add_var(target_str, type_name_val, scope=visit_ctx.scope)
 
-            self.print_line(f"{cpp_type} {target_str} = {value_str};", visit_ctx.current_indent)
+            if target_str in self.linter.has_typed[visit_ctx.scope] or \
+                name in self.linter.has_typed[visit_ctx.scope]:
+                self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
+            else:
+                self.set_type(target_str, visit_ctx.scope)
+                self.print_line(f"{'auto' if is_unpacking else cpp_type}{' [' if is_unpacking else ' '}{target_str}{']' if is_unpacking else ''} = {value_str};", visit_ctx.current_indent)
 
         return "None"
 
@@ -94,7 +113,6 @@ class ExprParser:
     def visit_Call(self, node: ast.Call, visit_ctx: VisitContext):
         func_name: str = node.func.id
         func: Function = self.funcs[func_name]
-        print(func, file=sys.stderr)
         if func.return_pytype is not None:
             return func.return_pytype
 
@@ -126,7 +144,11 @@ class ExprParser:
             return type_
         def ctype_arg(name):
             return self.linter.python_to_cpp_type(pytype_arg(name))
-        arguments = [(ctype_arg(arg.arg) + " " + arg.arg) for arg in node.args.args]
+        
+        arguments = []
+        for arg in node.args.args:
+            arguments.append(ctype_arg(arg.arg) + " " + arg.arg)
+            self.set_type(arg.arg, visit_ctx.scope)
 
         # GUESS WHAT THE RETURN TYPE IS
         expected_return_type = "None"
@@ -171,9 +193,40 @@ class ExprParser:
         
         return expected_return_type
 
+    def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext):
+        """
+            Print for i loop
+            PARAMS
+            node: ast.Call which is calling range() func
+        """
+        start = 0
+        end = 0
+        step = 1
+        if len(node.args) == 1:
+            end = self.repr.visit(node.args[0])
+        elif len(node.args) == 2:
+            start = self.repr.visit(node.args[0])
+            end = self.repr.visit(node.args[1])
+        elif len(node.args) == 3:
+            start = self.repr.visit(node.args[0])
+            end = self.repr.visit(node.args[1])
+            step = self.repr.visit(node.args[2])
+            
+        add_str = f"{var}++" if step == 1 else f"{var} += {step}"
+        self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
+
+    def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext):
+        func_return_type = self.repr.visit(node, return_type=True, scope=visit_ctx.scope)
+        self.print_line(f"for ({func_return_type} {var} : {self.repr.visit(node)}) {{", visit_ctx.current_indent)
 
     def visit_For(self, node: ast.For, visit_ctx: VisitContext):
-        self.print_line(f"for ({self.repr.visit(node.target)} in {self.repr.visit(node.iter)}) {{", visit_ctx.current_indent)
+        # self.print_line(f"for ({self.repr.visit(node.target)} in {self.repr.visit(node.iter)}) {{", visit_ctx.current_indent)
+        if isinstance(node.iter, ast.Call) and node.iter.func.id == "range":
+            self.print_for_i(self.repr.visit(node.target), node.iter, visit_ctx)
+        else:
+            self.print_for_iter(self.repr.visit(node.target), node.iter, visit_ctx)
+            
+            
         for expr in node.body:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
@@ -224,7 +277,7 @@ class ExprParser:
     def visit_Expr(self, node: ast.Expr, visit_ctx: VisitContext):
         # self.print_line("EXPRESSION: ", current_indent, end="")
         value = self.repr.visit(node.value)
-        self.print_line(value, visit_ctx.current_indent)
+        self.print_line(value + ";", visit_ctx.current_indent)
         return type(value).__name__
 
     def visit_Pass(self, node: ast.Pass, visit_ctx: VisitContext):

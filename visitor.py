@@ -38,33 +38,35 @@ class ReprVisitor():
             return self.linter.get_subscript_type(result, len(access), scope=scope)
         
         for acc in reversed(access):
+            if acc == "-1":
+                acc = f"{result}.size() - 1"
             result += f"[{acc}]"
         return result
 
     def visit_BinOp(self, node: ast.BinOp, scope, return_type=False):
         if return_type:
-            print(node.left, node.right, node.op, file=sys.stderr)
             type_left = self.visit(node.left, scope=scope, return_type=True)
             type_right = self.visit(node.right, scope=scope, return_type=True)
             return self.linter.get_binop_type(type_left, type_right, self.visit_op(node.op))
         return f"({self.visit(node.left)} {self.visit_op(node.op)} {self.visit(node.right)})"
 
-    def returntype_builtin_funcs(self, func_node: ast.Call) -> str:
-        """
-            Return the return pytype of a builtin function
-        """
-        func_name = func_node.func.id
-        if func_name == "map":
-            return func_node.args[0].id
-        elif func_name == "input":
-            return "str"
-
-        return func_name
-
+    def handle_pyfunc(self, node: ast.Call):
+        func_name = self.visit(node.func)
+        # Use size universally
+        if func_name == "len":
+            return f"{self.visit(node.args[0])}.size()"
+        if func_name == "print":
+            return f'cout << {" << ".join(self.visit(arg) for arg in node.args)} << "\\n"'
+        return None
+            
     def visit_Call(self, node: ast.Call, scope, return_type=False):
         if return_type:
-            return self.returntype_builtin_funcs(node)
-        
+            return self.linter.get_type_from_pyfunction(node)
+
+        res = self.handle_pyfunc(node)
+        if res is not None:
+            return res
+
         return f"{self.visit(node.func)}({','.join(self.visit(arg) for arg in node.args)})"
 
     def visit_Attribute(self, node: ast.Attribute, scope, return_type=False):
@@ -98,7 +100,11 @@ class ReprVisitor():
         return f"{self.visit(node.left)} {self.visit_op(node.ops[0])} {self.visit(node.comparators[0])}"
 
     def visit_List(self, node: ast.List, scope, return_type=False):
-        return f"[{', '.join(self.visit(el) for el in node.elts)}]"
+        if return_type:
+            if len(node.elts) == 2:
+                return ["pair", self.visit(node.elts[0], True), self.visit(node.elts[1], True)]
+            return ["list", self.visit(node.elts[0], True)]
+        return f"{{{', '.join(self.visit(el) for el in node.elts)}}}"
     
     def visit_UnaryOp(self, node: ast.UnaryOp, scope, return_type=False):
         return f"{self.visit_op(node.op)}{self.visit(node.operand)}"    

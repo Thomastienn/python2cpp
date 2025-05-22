@@ -1,5 +1,5 @@
 __pycache__
-c.err
-c.out
+*.err
+*.out
 test.py
-python.py
+python*.py
