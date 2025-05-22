@@ -1,9 +1,8 @@
 import sys
 import ast
 from linter import Linter
-from visitctx import VisitContext
 from visitor import ReprVisitor
-from structure import Function, Parameter
+from structure import Function, VisitContext
 
 
 class ExprParser:
@@ -29,23 +28,31 @@ class ExprParser:
 
         original = self.allow_print
         self.allow_print = allow_print
-        visitor(node, VisitContext(
+        
+        print(self.linter.typed_vars, file=sys.stderr)
+        print(visit_ctx, file=sys.stderr)
+        print(node, file=sys.stderr)
+        print("-" * 20, file=sys.stderr)
+        result = visitor(node, VisitContext(
+            current_indent=visit_ctx.current_indent,
             allow_print=allow_print,
+            scope=visit_ctx.scope
         ))
         self.allow_print = original
+        return result
 
     def generic_visit(self, node, visit_ctx: VisitContext):
         print("NOT IMPLEMENTED: ",node, file=sys.stderr)
         return
 
-    def find_type_func(self, func_name, full_str, func_node):
+    def find_type_func(self, func_name, full_str, func_node, visit_ctx: VisitContext):
         match_func = self.linter.is_func(full_str)
         if match_func:
             func_name = match_func[1]
             if func_name in self.linter.typed_funcs:
                 return self.linter.typed_funcs[func_name]
             if func_name in self.funcs:
-                return self.visit(func_node)
+                return self.visit(func_node, visit_ctx)
 
             return self.linter.get_type_from_pyfunction(func_name, full_str)
 
@@ -53,86 +60,73 @@ class ExprParser:
         # self.print_line("ASSIGN: ", current_indent)
         targets = node.targets
         value = node.value
-        value_str = self.repr.visit(value)
+        value_str = self.repr.visit(value, scope=visit_ctx.scope)
 
         match_func_val = self.linter.is_func(value_str)
-        # print("START: ", value_str, file=sys.stderr)
         if match_func_val:
-            # print("IN 1", file=sys.stderr)
-            type_name_val = self.find_type_func(match_func_val[1], value_str, value)
+            type_name_val = self.find_type_func(match_func_val[1], value_str, value, visit_ctx)
         else:
-            # print("IN 2", file=sys.stderr)
-            type_name_val = self.linter.get_pytype_from_str(value_str, self.repr)
-        # print("END: ", type_name_val, file=sys.stderr)
+            type_name_val = self.repr.visit(value, return_type=True, scope=visit_ctx.scope) 
 
         cpp_type = self.linter.python_to_cpp_type(type_name_val)
-        # print(self.linter.typed_vars, file=sys.stderr)
-        # print(self.linter.typed_nested_list, file=sys.stderr)
         for target in targets:
-            target_str = self.repr.visit(target)
+            target_str = self.repr.visit(target, scope=visit_ctx.scope)
 
             # It's a tuple of variables
             if "," in target_str:
                 for target_s in target_str.split(","):
-                    self.linter.add_var(target_s, type_name_val)
+                    self.linter.add_var(target_s, type_name_val, scope=visit_ctx.scope)
             else:
-                self.linter.add_var(target_str, type_name_val)
-                if type_name_val == "list":
-                    all_types = self.repr.visit(value, True)
-                    if isinstance(all_types, list):
-                        for t in all_types:
-                            self.linter.add_nested_list(target_str, t)
-                    else:
-                        self.linter.add_nested_list(target_str, all_types)
+                self.linter.add_var(target_str, type_name_val, scope=visit_ctx.scope)
 
-            self.print_line(f"{cpp_type} {target_str} = {value_str}", visit_ctx.current_indent)
-        # self.print_line("END ASSIGN", current_indent)
+            self.print_line(f"{cpp_type} {target_str} = {value_str};", visit_ctx.current_indent)
 
-        # print("-"*20, file=sys.stderr)
         return "None"
 
     def visit_AugAssign(self, node: ast.AugAssign, visit_ctx: VisitContext):
         # self.print_line("AUG ASSIGN: ", current_indent, end="")
         self.print_line(self.repr.visit(node.target) + " " + \
-                        self.repr.visit_op(node.op) + "=" + \
-                        self.repr.visit(node.value)
+                        self.repr.visit_op(node.op) + "= " + \
+                        self.repr.visit(node.value) + ";"
                         , visit_ctx.current_indent)
         return "None"
 
     def visit_Call(self, node: ast.Call, visit_ctx: VisitContext):
         func_name: str = node.func.id
         func: Function = self.funcs[func_name]
+        print(func, file=sys.stderr)
+        if func.return_pytype is not None:
+            return func.return_pytype
 
         # Now we know the type of parameters, put this in the info
         func_ast_obj = func._ast_object
         for func_param, arg in zip(func_ast_obj.args.args, node.args):
             # Get the type from argument and pass it to parameter
-            new_param = Parameter(
-                name = func_param.arg,
-                pytype = self.linter.get_pytype_from_str(self.repr.visit(arg), self.repr)
-            )
-            func.params.append(new_param)
-            self.linter.add_var(new_param.name, new_param.pytype)
+            type_ = self.repr.visit(arg, return_type=True, scope=visit_ctx.scope)
+            self.linter.add_var(func_param.arg, type_, scope=func_name)
 
         # For keywords like a=1, b=(math.pi*2) something
         for arg, value in node.keywords:
-            new_param = Parameter(
-                name=arg,
-                pytype=self.linter.get_pytype_from_str(self.repr.visit(value), self.repr)
-            )
-            func.params.append(new_param)
-            self.linter.add_var(new_param.name, new_param.pytype)
+            type_ = self.repr.visit(arg, return_type=True, scope=visit_ctx.scope)
+            self.linter.add_var(arg, type_, scope=func_name)
 
         # Now need to return the type by going to function definition
         new_ctx = VisitContext(
+            current_indent=visit_ctx.current_indent,
             allow_print = False,
+            scope=func._ast_object.name
         )
-        return self.visit(func._ast_object, new_ctx)
-
+        return_type = self.visit(func._ast_object, new_ctx)
+        func.return_pytype = return_type
+        return return_type
+                          
     def visit_FunctionDef(self, node: ast.FunctionDef, visit_ctx: VisitContext):
+        def pytype_arg(name):
+            type_ = self.linter.get_var_type(name, scope=visit_ctx.scope)
+            return type_
         def ctype_arg(name):
-            return self.linter.python_to_cpp_type(self.linter.get_var_type(name))
-        arguments = [(ctype_arg(arg.arg) + arg.arg) for arg in node.args.args]
+            return self.linter.python_to_cpp_type(pytype_arg(name))
+        arguments = [(ctype_arg(arg.arg) + " " + arg.arg) for arg in node.args.args]
 
         # GUESS WHAT THE RETURN TYPE IS
         expected_return_type = "None"
@@ -141,49 +135,52 @@ class ExprParser:
             if isinstance(expr, ast.Return):
                 return_val = expr.value
 
-                # My linter does not support functions
                 if isinstance(return_val, ast.Call):
                     name_func = return_val.name
                     # Skip some type of recursion
                     if name_func in walk_already:
                         continue
                     walk_already.add(name_func)
-                    if expected_return_type == None:
+                    if expected_return_type == "None":
                         new_ctx = VisitContext(
                             current_indent = visit_ctx.current_indent + 1,
                             allow_print = False,
+                            scope = name_func
                         )
                         expected_return_type = self.visit(return_val, new_ctx)
                 else:
-                    if expected_return_type is None:
-                        expected_return_type = self.linter.get_pytype_from_str(self.repr.visit(return_val), self.repr)
+                    if expected_return_type == "None":
+                        expected_return_type = self.repr.visit(return_val, return_type=True, scope=node.name)
 
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
                 allow_print = False,
+                scope = node.name,
             )
             self.visit(expr, new_ctx)
-        return expected_return_type
-
+            
         # PRINT FORMAT FUCNTION
-        self.print_line(f"{self.linter.get_func_type(node.name)} {node.name}({', '.join(arguments)}) {{", visit_ctx.current_indent)
+        self.print_line(f"{self.linter.python_to_cpp_type(expected_return_type)} {node.name}({', '.join(arguments)}) {{", visit_ctx.current_indent)
         for expr in node.body:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
+                scope = visit_ctx.scope,
             )
             self.visit(expr, new_ctx)
         self.print_line("}", visit_ctx.current_indent)
+        
+        return expected_return_type
 
 
     def visit_For(self, node: ast.For, visit_ctx: VisitContext):
-        # self.print_line(
-            # f"FOR LOOP: for {self.repr.visit(node.target)} in {self.repr.visit(node.iter)}", current_indent)
+        self.print_line(f"for ({self.repr.visit(node.target)} in {self.repr.visit(node.iter)}) {{", visit_ctx.current_indent)
         for expr in node.body:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
+                scope = visit_ctx.scope,
             )
             self.visit(expr, new_ctx)
-        # self.print_line("END", current_indent)
+        self.print_line("}", visit_ctx.current_indent)
 
     def visit_If(self, node: ast.If, visit_ctx: VisitContext):
         self.print_line(
@@ -192,6 +189,7 @@ class ExprParser:
         for expr in node.body:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
+                scope=visit_ctx.scope,
             )
             self.visit(expr, new_ctx)
         self.print_line("}", visit_ctx.current_indent)
@@ -202,6 +200,7 @@ class ExprParser:
             for expr in node.orelse:
                 new_ctx = VisitContext(
                     current_indent = visit_ctx.current_indent + 1,
+                    scope=visit_ctx.scope,
                 )
                 self.visit(expr, new_ctx)
             self.print_line("}", visit_ctx.current_indent)
@@ -209,7 +208,7 @@ class ExprParser:
 
     def visit_Return(self, node: ast.Return, visit_ctx: VisitContext):
         # self.print_line("RETURN: ", current_indent, end="")
-        self.print_line(self.repr.visit(node.value), visit_ctx.current_indent)
+        self.print_line(f"return {self.repr.visit(node.value)};", visit_ctx.current_indent)
 
     def visit_While(self, node: ast.While, visit_ctx: VisitContext):
         self.print_line(
@@ -217,6 +216,7 @@ class ExprParser:
         for expr in node.body:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
+                scope=visit_ctx.scope,
             )
             self.visit(expr, new_ctx)
         self.print_line("}", visit_ctx.current_indent)
@@ -224,7 +224,7 @@ class ExprParser:
     def visit_Expr(self, node: ast.Expr, visit_ctx: VisitContext):
         # self.print_line("EXPRESSION: ", current_indent, end="")
         value = self.repr.visit(node.value)
-        self.print_line(value, visit_ctx.current_indent, tab=False)
+        self.print_line(value, visit_ctx.current_indent)
         return type(value).__name__
 
     def visit_Pass(self, node: ast.Pass, visit_ctx: VisitContext):

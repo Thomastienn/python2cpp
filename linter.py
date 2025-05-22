@@ -1,6 +1,7 @@
 import ast
 import re
 import sys
+from copy import deepcopy
 from structure import Function
 from collections import defaultdict
 
@@ -19,19 +20,34 @@ class Linter:
     def __init__(self):
         self.typed_vars = defaultdict(dict)
         self.typed_funcs = {}
-        self.typed_nested_list = defaultdict(lambda : defaultdict(list))
 
     def add_var(self, name, v_type, scope="global"):
         self.typed_vars[scope][name] = v_type
 
-    def add_nested_list(self, name, v_type, scope="global"):
-        self.typed_nested_list[scope][name].append(v_type)
-        
     def remove_var(self, name, scope="global"):
         del self.typed_vars[scope][name]
 
-    def get_var_type(self, name, scope="global"):
-        return self.typed_vars[scope][name]
+    def type_list_to_str(self, type_list: list[str]) -> str:
+        return_type = "list<"
+        n = len(type_list)
+        for i, type_ in enumerate(type_list):
+            return_type += type_
+            if i != n - 1:
+                return_type += "<"
+        return_type += ">" * (n+1)
+        return return_type
+
+        
+    def get_var_type(self, name, scope="global") -> str | list[str]:
+        print(name, scope, file=sys.stderr)
+        try:
+            return_type = self.typed_vars[scope][name]
+        except KeyError:
+            try:
+                return_type = self.typed_vars["global"][name]
+            except KeyError:
+                raise KeyError(f"Variable {name} not found")
+        return deepcopy(return_type)
 
     def add_func(self, name, f_type):
         self.typed_funcs[name] = f_type
@@ -72,40 +88,19 @@ class Linter:
             r"\d+\.\d*([eE][+-]?\d+)?"
         ]
     
-    # Except for functions
-    def get_pytype_from_str(self, s, visitor):
-        for pattern in self.pattern_constants():
-            match = re.match(pattern, s)
-            if match:
-                return type(eval(s)).__name__
-        
-        pattern_var = r"(\w+)"
-        # Then this is a variable
-        match_var = re.match(pattern_var, s)
-        if match_var:
-            var_name = match_var[1]
-            return self.typed_vars[var_name]
-
-        for t_name, pattern in self.pattern_pytype():
-            match = re.match(pattern, s)
-            if match:
-                return t_name
-
-        try:
-            return_type = type(eval(s)).__name__
-        except BaseException as e:
-            return_type = visitor.visit(ast.parse(s).body[0].value, True)
-        return return_type
-
-    def python_to_cpp_type(self, t_name: str):
+    def python_to_cpp_type(self, t_name: str | list[str]):
         if t_name is None:
             return "void"
+        if isinstance(t_name, list):
+            if len(t_name) == 1:
+                return Linter.TYPES[t_name[0]]
+            return f"{Linter.TYPES[t_name[0]]}<{self.python_to_cpp_type(t_name[1:])}>"
         if t_name not in Linter.TYPES:
             raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
         return Linter.TYPES[t_name]
 
     def get_subscript_type(self, base_name, size, scope="global"):
-        return self.typed_nested_list[scope][base_name][size-1]
+        return self.get_var_type(base_name, scope)[size]
 
     def get_binop_type(self, pytype_left, pytype_right, op: str):
         if pytype_left not in Linter.TYPES:
@@ -119,13 +114,11 @@ class Linter:
             if op == "*":
                 return "list"
             raise NotImplementedError
+            
+        if "str" in case and "int" in case:
+            return "str"
 
         if "float" in case:
             return "float"
 
         return pytype_left
-
-
-if __name__ == "__main__":
-    linter = Linter()
-    linter.get_pytype_from_str("map(int())")

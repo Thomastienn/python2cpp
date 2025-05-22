@@ -1,9 +1,8 @@
 import sys
 import ast
 import copy
-from structure import Function
+from structure import Function, VisitContext
 from processor import ExprParser
-from visitctx import VisitContext
 
 # tree = ast.parse("res = [[0 for j in range(len(b[0]))] for i in range(len(a))]")
 with open('python.py', 'r') as f:
@@ -35,25 +34,23 @@ for exp in normal_exps:
     printer.visit(exp, VisitContext(allow_print=False))
 
 print(
-    """
-#include <bits/stdc++.h>
+    """#include <bits/stdc++.h>
 using namespace std;
 
     """
 )
 
 for func in funcs.values():
-    printer.visit(func)
+    printer.visit(func._ast_object, VisitContext(scope=func.name, allow_print=True))
 print()
 
 print(
     """
-int main() {
-    """
+int main() {"""
 )
 
 for exp in normal_exps:
-    printer.visit(exp, VisitContext(allow_print=True))
+    printer.visit(exp, VisitContext(allow_print=True, current_indent=1))
 
 print(
     """
