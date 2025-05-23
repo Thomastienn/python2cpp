@@ -81,9 +81,12 @@ class ReprVisitor():
             else:
                 final.append(elt_type)
             return final
+        # Replace python with c++ syntax
+        # Go from list comprehension to a seperate for loop
         elt = self.visit(node.elt)
         parts = [self.visit(gen) for gen in node.generators]
-        return f"[{elt} for {', '.join(parts)}]"
+        # return f"[{elt} for {', '.join(parts)}]"
+        return "move(temp)"
 
     def visit_comprehension(self, node: ast.comprehension, scope, return_type=False):
         target = self.visit(node.target)
@@ -94,7 +97,8 @@ class ReprVisitor():
     def visit_IfExp(self, node: ast.IfExp, scope, return_type=False):
         if return_type:
             return self.visit(node.body, True)
-        return f"{self.visit(node.body)} if {self.visit(node.test)} else {self.visit(node.orelse)}"
+        return f"({self.visit(node.test)})? ({self.visit(node.body)}) : ({self.visit(node.orelse)})"
+        # return f"{self.visit(node.body)} if {self.visit(node.test)} else {self.visit(node.orelse)}"
 
     def visit_Compare(self, node: ast.Compare, scope, return_type=False):
         return f"{self.visit(node.left)} {self.visit_op(node.ops[0])} {self.visit(node.comparators[0])}"
@@ -108,6 +112,11 @@ class ReprVisitor():
     
     def visit_UnaryOp(self, node: ast.UnaryOp, scope, return_type=False):
         return f"{self.visit_op(node.op)}{self.visit(node.operand)}"    
+    
+    def visit_BoolOp(self, node: ast.BoolOp, scope, return_type=False):
+        if return_type:
+            return "bool"
+        return f"({self.visit(node.values[0])} {self.visit_op(node.op)} {self.visit(node.values[1])})"
 
     def visit_op(self, op):
         mp = {
@@ -119,14 +128,12 @@ class ReprVisitor():
             ast.Div: "/",
             ast.Mod: "%",
             ast.Eq: "==",
-            ast.Not: "not",
+            ast.Not: "!",
             ast.NotEq: "!=",
             ast.Lt: "<",
             ast.LtE: "<=",
             ast.Gt: ">",
             ast.GtE: ">=",
-            ast.And: "and",
-            ast.Or: "or",
             ast.Pow: "**",
             ast.FloorDiv: "//",
             ast.LShift: "<<",
@@ -134,7 +141,9 @@ class ReprVisitor():
             ast.BitOr: "|",
             ast.BitAnd: "&",
             ast.BitXor: "^",
-            ast.Invert: "~"
+            ast.Invert: "~",
+            ast.Or: "||",
+            ast.And: "&&",
         }
         return mp.get(type(op), f"<{type(op).__name__}>")
     

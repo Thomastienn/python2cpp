@@ -1,25 +1,23 @@
 import os
 import sys
 import ast
-from linter import Linter
-from constants import PROD
-from visitor import ReprVisitor
-from structure import Function, VisitContext
+from py2c.utils.linter import Linter
+from py2c.utils.constants import PROD, TAB
+from py2c.core.visitor import ReprVisitor
+from py2c.core.structure import Function, VisitContext
 
 
 class ExprParser:
-    TAB = " " * 4
 
     def __init__(self, funcs: dict[str, Function]):
-        self.funcs = funcs
-        self.linter = Linter()
+        self.linter = Linter(funcs)
         self.repr = ReprVisitor(self.linter)
         self.allow_print = True
         self.debug = open((os.devnull if PROD else "debug.out"), "w")
 
-    def print_line(self, line: str, current_indent: int, end="\n", tab: bool = True):
+    def print_line(self, line: str, current_indent: int, end="\n"):
         if self.allow_print:
-            print(((self.TAB * current_indent) if tab else "") + line, end=end)
+            print((TAB * current_indent) + line, end=end)
 
     def visit(self, node: ast.AST, visit_ctx: VisitContext = VisitContext()):
         if visit_ctx.allow_print is None:
@@ -35,7 +33,7 @@ class ExprParser:
         print(self.linter.typed_vars, file=self.debug)
         print(visit_ctx, file=self.debug)
         print(node, file=self.debug)
-        print(self.funcs, file=self.debug)
+        print(self.linter.funcs, file=self.debug)
         print("-" * 20, file=self.debug)
         result = visitor(node, VisitContext(
             current_indent=visit_ctx.current_indent,
@@ -51,9 +49,7 @@ class ExprParser:
 
     def find_type_func(self, func_node, visit_ctx: VisitContext):
         func_name = func_node.func.id
-        if func_name in self.linter.typed_funcs:
-            return self.linter.typed_funcs[func_name]
-        if func_name in self.funcs:
+        if func_name in self.linter.funcs:
             return self.visit(func_node, visit_ctx)
 
         return self.linter.get_type_from_pyfunction(func_node)
@@ -62,14 +58,14 @@ class ExprParser:
         if self.allow_print:
             self.linter.has_typed[scope][name] = True
 
+
     def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
         # self.print_line("ASSIGN: ", current_indent)
         targets = node.targets
         value = node.value
         value_str = self.repr.visit(value, scope=visit_ctx.scope)
 
-        match_func_val = self.linter.is_func(value_str)
-        if match_func_val:
+        if isinstance(value, ast.Call):
             type_name_val = self.find_type_func(value, visit_ctx)
         else:
             type_name_val = self.repr.visit(value, return_type=True, scope=visit_ctx.scope) 
@@ -92,6 +88,7 @@ class ExprParser:
             else:
                 if name is None:
                     self.linter.add_var(target_str, type_name_val, scope=visit_ctx.scope)
+                    
 
             if target_str in self.linter.has_typed[visit_ctx.scope] or \
                 name in self.linter.has_typed[visit_ctx.scope]:
@@ -112,7 +109,7 @@ class ExprParser:
 
     def visit_Call(self, node: ast.Call, visit_ctx: VisitContext):
         func_name: str = node.func.id
-        func: Function = self.funcs[func_name]
+        func: Function = self.linter.funcs[func_name]
         if func.return_pytype is not None:
             return func.return_pytype
 
@@ -202,7 +199,9 @@ class ExprParser:
         start = 0
         end = 0
         step = 1
-        if len(node.args) == 1:
+        if len(node.args) == 0:
+            raise RuntimeError("No arguments for range()")
+        elif len(node.args) == 1:
             end = self.repr.visit(node.args[0])
         elif len(node.args) == 2:
             start = self.repr.visit(node.args[0])
@@ -211,6 +210,8 @@ class ExprParser:
             start = self.repr.visit(node.args[0])
             end = self.repr.visit(node.args[1])
             step = self.repr.visit(node.args[2])
+        else:
+            raise RuntimeError("Too many arguments for range()")
             
         add_str = f"{var}++" if step == 1 else f"{var} += {step}"
         self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
@@ -219,13 +220,15 @@ class ExprParser:
         func_return_type = self.repr.visit(node, return_type=True, scope=visit_ctx.scope)
         self.print_line(f"for ({func_return_type} {var} : {self.repr.visit(node)}) {{", visit_ctx.current_indent)
 
-    def visit_For(self, node: ast.For, visit_ctx: VisitContext):
-        # self.print_line(f"for ({self.repr.visit(node.target)} in {self.repr.visit(node.iter)}) {{", visit_ctx.current_indent)
+    def print_forloop(self, node: ast.For, visit_ctx: VisitContext):
         if isinstance(node.iter, ast.Call) and node.iter.func.id == "range":
             self.print_for_i(self.repr.visit(node.target), node.iter, visit_ctx)
         else:
             self.print_for_iter(self.repr.visit(node.target), node.iter, visit_ctx)
-            
+
+    def visit_For(self, node: ast.For, visit_ctx: VisitContext):
+        # self.print_line(f"for ({self.repr.visit(node.target)} in {self.repr.visit(node.iter)}) {{", visit_ctx.current_indent)
+        self.print_forloop(node, visit_ctx)
             
         for expr in node.body:
             new_ctx = VisitContext(

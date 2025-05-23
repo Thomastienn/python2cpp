@@ -2,8 +2,10 @@ import ast
 import re
 import sys
 from copy import deepcopy
-from structure import Function
 from collections import defaultdict
+
+from py2c.core.structure import Function
+
 
 class Linter:
     TYPES = {
@@ -18,10 +20,10 @@ class Linter:
         "pair": "pair", # This doesnt exist but i want to make sure everything doesn't break.
         "None": "void",
     }
-    def __init__(self):
+    def __init__(self, funcs: dict[str, Function]):
         self.typed_vars = defaultdict(dict)
         self.has_typed = defaultdict(lambda : defaultdict(bool))
-        self.typed_funcs = {}
+        self.funcs = funcs
 
     def add_var(self, name, v_type, scope="global"):
         self.typed_vars[scope][name] = v_type
@@ -77,12 +79,6 @@ class Linter:
             ("dict", r"\{.+:{1,}.*\}|^dict\((.*)\)"),
             ("tuple", r".*,.*|^tuple\((.*)\)"),
         ]
-
-    def is_func(self, string: str):
-        pattern_func = r"^(\w+)\(.*\)"
-        # Then this is a function if match
-        match_func = re.match(pattern_func, string)
-        return match_func
 
     def pattern_constants(self):
         return [
