@@ -3,6 +3,8 @@ import ast
 from py2c.core.structure import Function, VisitContext
 from py2c.core.processor import ExprParser
 from py2c.utils.constants import HEADER, TAB
+from py2c.utils.template import CPPTemplate
+from py2c.utils.utils import Utils
 
 def parse(tree):
     funcs = {}
@@ -21,11 +23,16 @@ def parse(tree):
             normal_exps.append(exp)
 
     # Process the global scope first to know the type of arguments of functions
+    # Like pre-processing
     for exp in normal_exps:
         printer.visit(exp, VisitContext(allow_print=False))
 
     # JUST A HEADER LIB
     print(HEADER)
+
+    # ALL TEMPLATES USED
+    for template in Utils.template_uses:
+        print(CPPTemplate[template].value)
 
     # ALL DECLARED FUNCTIONS
     for func in funcs.values():

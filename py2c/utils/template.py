@@ -1,5 +1,8 @@
-class CPPTemplate:
-    FASTPOW = """
+from enum import Enum
+import textwrap
+
+class CPPTemplate(Enum):
+    FASTPOW = textwrap.dedent("""
     template<typename T>
     T fastpow(T a, T b) {
         T res = 1;
@@ -12,9 +15,9 @@ class CPPTemplate:
         }
         return res;
     }
-    """
+    """)
 
-    MODPOW = """
+    MODPOW = textwrap.dedent("""
     template<typename T>
     T modpow(T a, T b, T mod) {
         T res = 1;
@@ -27,9 +30,9 @@ class CPPTemplate:
         }
         return res;
     }
-    """
+    """)
 
-    ENUMERATE = """
+    ENUMERATE_CPP = textwrap.dedent("""
     template <ranges::input_range R>
     auto enumerate_cpp(R&& range) {
         size_t index = 0;
@@ -38,7 +41,15 @@ class CPPTemplate:
                 return pair{index++, elem};
             });
     }
-    """
+    """)
+
+    CINPUT = textwrap.dedent("""
+    string cinput() {
+        string s;
+        getline(cin, s);
+        return s;
+    }
+    """)
 
 
     

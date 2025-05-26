@@ -63,6 +63,9 @@ class Linter:
             Return the return pytype of a builtin function
         """
         func_name = func_node.func.id
+        if func_name in Linter.TYPES:
+            return func_name
+        
         if func_name == "map":
             return func_node.args[0].id
         elif func_name == "input":

@@ -1,6 +1,10 @@
+from __future__ import annotations
 import ast
-from typing import Any
+from typing import TYPE_CHECKING
 from pydantic import BaseModel, PrivateAttr
+
+if TYPE_CHECKING:
+    from py2c.core.processor import ExprParser
 
 class Function(BaseModel):
     name: str
@@ -13,6 +17,13 @@ class VisitContext(BaseModel):
     scope: str = "global"
     
 class ReprVisitContext(BaseModel):
-    processor: Any # IT IS A PROCESSOR (CANNOT TYPE DUE TO CIRCULAR DEPENDENCY)
+    processor: ExprParser 
     return_type: bool = False
-    scope: str = "global"
+    parser_ctx: VisitContext 
+    
+    model_config = {
+        "arbitrary_types_allowed": True
+    }
+    
+from py2c.core.processor import ExprParser
+ReprVisitContext.model_rebuild()
