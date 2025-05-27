@@ -1,3 +1,4 @@
+import sys, io
 class Utils:
     # List of names of template used
     template_uses: set[str] = set()
@@ -6,5 +7,14 @@ class Utils:
             return filename.split(".")[0]
         else:
             return filename
+    def capture_output(func, *args):
+        original = sys.stdout
+        sys.stdout = io.StringIO()
+        func(*args)
+        output = sys.stdout.getvalue()
+        sys.stdout = original
+        return output
+
+
 
 

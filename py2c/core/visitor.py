@@ -49,6 +49,9 @@ class ReprVisitor():
             processor=repr_ctx.processor,
             parser_ctx = repr_ctx.parser_ctx
         )
+        # This is only when we want to store variables
+        if isinstance(node.elts[0], ast.Name) and isinstance(node.elts[0].ctx, ast.Store):
+            return ",".join(self.visit(el, new_ctx) for el in node.elts)
         # Define this as a pair now
         if len(node.elts) == 2:
             return f"{{{self.visit(node.elts[0], new_ctx)}, {self.visit(node.elts[1], new_ctx)}}}"
@@ -167,7 +170,6 @@ class ReprVisitor():
             parser_ctx=repr_ctx.parser_ctx
         )
 
-        
         result = "[&] {\n"
         local_indent = repr_ctx.parser_ctx.current_indent + 1
 
@@ -184,40 +186,38 @@ class ReprVisitor():
                 current_indent=local_indent,
                 scope=repr_ctx.parser_ctx.scope
             )
-            original_output = sys.stdout
-            sys.stdout = io.StringIO()
-            repr_ctx.processor.print_forloop(for_node, proc_ctx)
-            result += sys.stdout.getvalue()
-            sys.stdout = original_output
-
+            result += Utils.capture_output(repr_ctx.processor.print_forloop, for_node, proc_ctx)
             local_indent += 1 + len(gen.ifs)
 
         # BODY
         # TODO : Find what this assign to.
-        original_output = sys.stdout
-        sys.stdout = io.StringIO()
-        cur_scope = "lambda"
-        cur_num = 0
-        while cur_scope in self.linter.typed_vars:
-            cur_scope = f"lambda_{cur_num}"
-            cur_num += 1
-        repr_ctx.processor.visit(ast.Assign(
-            targets=[ast.Name(id="temp", ctx=ast.Store())],
-            value=node.elt
-        ), VisitContext(
-            current_indent=local_indent,
-            scope="lambda"
-        ))
-        result += sys.stdout.getvalue()
-        sys.stdout = original_output
+        def assign_to():
+            all_scope = [repr_ctx.parser_ctx.scope, "lambda"]
+            cur_scope = "lambda"
+            cur_num = 0
+            while cur_scope in self.linter.typed_vars:
+                cur_scope = f"lambda_{cur_num}"
+                cur_num += 1
+                all_scope.append(cur_scope)
+            for scope in reversed(all_scope):
+                try:
+                    repr_ctx.processor.visit(ast.Assign(
+                        targets=[ast.Name(id="temp", ctx=ast.Store())],
+                        value=node.elt
+                    ), VisitContext(
+                        current_indent=local_indent,
+                        scope= cur_scope
+                    ))
+                    break
+                except Exception as e:
+                    pass
+        result += Utils.capture_output(assign_to)
         
         # CLOSING BRACKETS
         for ind in range(local_indent-1, repr_ctx.parser_ctx.current_indent,-1):
             result += TAB * ind + "}\n"
-
-
+            
         result += TAB * repr_ctx.parser_ctx.current_indent + "}()"
-        
         return result
 
     def visit_comprehension(self, node: ast.comprehension, repr_ctx: ReprVisitContext):

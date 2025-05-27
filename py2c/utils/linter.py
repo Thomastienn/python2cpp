@@ -47,6 +47,8 @@ class Linter:
             return_type = self.typed_vars[scope][name]
         except KeyError:
             try:
+                # print(self.typed_vars, file=sys.stderr)
+                # print(name, scope, file=sys.stderr)
                 return_type = self.typed_vars["global"][name]
             except KeyError:
                 raise KeyError(f"Variable {name} not found")

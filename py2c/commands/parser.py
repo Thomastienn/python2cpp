@@ -46,3 +46,5 @@ def parse(tree):
         printer.visit(exp, VisitContext(allow_print=True, current_indent=1))
     print(TAB + "return 0;")
     print("}")
+
+    print(printer.linter.typed_vars, file=sys.stderr)
