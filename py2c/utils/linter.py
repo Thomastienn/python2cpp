@@ -101,10 +101,10 @@ class Linter:
             if len(t_name) == 1:
                 return Linter.TYPES[t_name[0]]
             container_type = t_name[0]
-            if container_type in ["list", "tuple", "set"]:
+            if container_type in ["list", "set"]:
                 return f"{Linter.TYPES[container_type]}<{self.python_to_cpp_type(t_name[1:])}>"
-            if container_type == "pair":
-                return f"pair<{self.python_to_cpp_type(t_name[1])}, {self.python_to_cpp_type(t_name[2])}>"
+            if container_type in ["pair", "tuple"]:
+                return f"{container_type}<{', '.join(self.python_to_cpp_type(t) for t in t_name[1:])}>"
             raise NotImplementedError(f"{container_type} not implemented")
         if t_name not in Linter.TYPES:
             raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))

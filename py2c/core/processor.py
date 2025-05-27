@@ -2,22 +2,21 @@ import os
 import sys
 import ast
 from py2c.utils.linter import Linter
-from py2c.utils.constants import PROD, TAB
+from py2c.utils import constants
 from py2c.core.visitor import ReprVisitor
 from py2c.core.structure import VisitContext, ReprVisitContext, Function
 
 
 class ExprParser:
-
     def __init__(self, funcs: dict[str, Function]):
         self.linter = Linter(funcs)
         self.repr = ReprVisitor(self.linter)
         self.allow_print = True
-        self.debug = open((os.devnull if PROD else "debug.out"), "w")
+        self.debug = open((os.devnull if constants.PROD else "debug.out"), "w")
 
     def print_line(self, line: str, current_indent: int, end="\n"):
         if self.allow_print:
-            print((TAB * current_indent) + line, end=end)
+            print((constants.TAB * current_indent) + line, end=end)
 
     def visit(self, node: ast.AST, visit_ctx: VisitContext = VisitContext()):
         if visit_ctx.allow_print is None:
@@ -62,7 +61,6 @@ class ExprParser:
 
 
     def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
-        # self.print_line("ASSIGN: ", current_indent)
         targets = node.targets
         value = node.value
         

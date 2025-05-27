@@ -1,11 +1,12 @@
 import sys
 import ast
-from py2c.core.structure import Function, VisitContext
+from py2c.core.structure import Function, VisitContext, ReprVisitContext
 from py2c.core.processor import ExprParser
 from py2c.utils.constants import HEADER, TAB
 from py2c.utils.template import CPPTemplate
 from py2c.utils.utils import Utils
 
+ReprVisitContext.model_rebuild()
 def parse(tree):
     funcs = {}
     normal_exps = []

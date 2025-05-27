@@ -1,4 +1,4 @@
-import setup, setuptools
+from setuptools import setup, find_packages
 
 def get_requirement():
     with open('requirements.txt') as f:
@@ -11,7 +11,7 @@ setup(
     author = "Thomastien",
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
-    packages = setuptools.find_packages(),
+    packages = find_packages(),
     include_package_data = True,
     install_requires = get_requirement(),
     python_requires='>=3.10',

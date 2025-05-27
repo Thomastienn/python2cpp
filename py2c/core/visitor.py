@@ -25,7 +25,7 @@ class ReprVisitor():
     def visit_Constant(self, node: ast.Constant, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
             return type(node.value).__name__
-        return repr(node.value)
+        return repr(node.value).replace("\'", "\"")
 
     def visit_Name(self, node: ast.Name, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
@@ -34,12 +34,26 @@ class ReprVisitor():
 
     def visit_Tuple(self, node: ast.Tuple, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
-            return "tuple"
+            new_ctx = ReprVisitContext(
+                processor=repr_ctx.processor,
+                return_type=True,
+                parser_ctx=repr_ctx.parser_ctx
+            )
+            if len(node.elts) == 2:
+                return ["pair", self.visit(node.elts[0], new_ctx), self.visit(node.elts[1], new_ctx)]
+            type_ = ["tuple"]
+            for el in node.elts:
+                type_.append(self.visit(el, new_ctx))
+            return type_
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
             parser_ctx = repr_ctx.parser_ctx
         )
-        return ",".join(self.visit(el, new_ctx) for el in node.elts)
+        # Define this as a pair now
+        if len(node.elts) == 2:
+            return f"{{{self.visit(node.elts[0], new_ctx)}, {self.visit(node.elts[1], new_ctx)}}}"
+            
+        return f"make_tuple({', '.join(self.visit(el, new_ctx) for el in node.elts)})"
 
     def visit_Subscript(self, node: ast.Subscript, repr_ctx: ReprVisitContext):
         new_ctx = ReprVisitContext(
@@ -91,6 +105,15 @@ class ReprVisitor():
         func_name = self.visit(node.func, new_ctx)
         # Use size universally
         if func_name == "len":
+            # Figure the type of this value
+            get_type_ctx = ReprVisitContext(
+                return_type=True,
+                processor=repr_ctx.processor,
+                parser_ctx=repr_ctx.parser_ctx
+            )
+            type_ = self.visit(node.args[0], get_type_ctx)
+            if isinstance(type_, list) and type_[0] == "tuple":
+                return f"tuple_size<decltype({self.visit(node.args[0], new_ctx)})>::value"
             return f"{self.visit(node.args[0], new_ctx)}.size()"
         if func_name == "print":
             return f'cout << {" << ".join(self.visit(arg, new_ctx) for arg in node.args)} << "\\n"'
