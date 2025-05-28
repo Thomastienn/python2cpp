@@ -192,31 +192,20 @@ class ReprVisitor():
         # BODY
         # TODO : Find what this assign to.
         def assign_to():
-            all_scope = [repr_ctx.parser_ctx.scope, "lambda"]
-            cur_scope = "lambda"
-            cur_num = 0
-            while cur_scope in self.linter.typed_vars:
-                cur_scope = f"lambda_{cur_num}"
-                cur_num += 1
-                all_scope.append(cur_scope)
-            for scope in reversed(all_scope):
-                try:
-                    repr_ctx.processor.visit(ast.Assign(
-                        targets=[ast.Name(id="temp", ctx=ast.Store())],
-                        value=node.elt
-                    ), VisitContext(
-                        current_indent=local_indent,
-                        scope= cur_scope
-                    ))
-                    break
-                except Exception as e:
-                    pass
+            repr_ctx.processor.visit(ast.Assign(
+                targets=[ast.Name(id="temp", ctx=ast.Store())],
+                value=node.elt
+            ), VisitContext(
+                current_indent=local_indent,
+                scope=repr_ctx.parser_ctx.scope
+            ))
+            
         result += Utils.capture_output(assign_to)
-        
+
         # CLOSING BRACKETS
         for ind in range(local_indent-1, repr_ctx.parser_ctx.current_indent,-1):
             result += TAB * ind + "}\n"
-            
+
         result += TAB * repr_ctx.parser_ctx.current_indent + "}()"
         return result
 
@@ -268,14 +257,14 @@ class ReprVisitor():
             parser_ctx=repr_ctx.parser_ctx
         )
         return f"{{{', '.join(self.visit(el, new_ctx) for el in node.elts)}}}"
-    
+
     def visit_UnaryOp(self, node: ast.UnaryOp, repr_ctx: ReprVisitContext):
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
             parser_ctx=repr_ctx.parser_ctx
         )
         return f"{self.visit_op(node.op)}{self.visit(node.operand, new_ctx)}"    
-    
+
     def visit_BoolOp(self, node: ast.BoolOp, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
             return "bool"
@@ -313,7 +302,7 @@ class ReprVisitor():
             ast.And: "&&",
         }
         return mp.get(type(op), f"<{type(op).__name__}>")
-    
+
     def generic_visit(self, node: ast.AST, repr_ctx: ReprVisitContext):
         raise NotImplementedError(
             f"Visit method not implemented for {type(node).__name__}")
