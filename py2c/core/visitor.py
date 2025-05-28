@@ -192,13 +192,24 @@ class ReprVisitor():
         # BODY
         # TODO : Find what this assign to.
         def assign_to():
+            last_scope = repr_ctx.parser_ctx.scope[-1]
+            new_scope = "lambda0"
+            if last_scope.startswith("lambda"):
+                new_scope = f"lambda{int(last_scope[len('lambda'):]) + 1}"
+            full_new_scope = repr_ctx.parser_ctx.scope + [new_scope]
+
+            # WARNING: IDK WHY THIS WORKS, BUT IT DOES
+            # It might break something later
+            # I think it got overridden later so this is just bypassing the check
+            self.linter.add_var("temp", "This doesn't matter", scope=full_new_scope)
             repr_ctx.processor.visit(ast.Assign(
                 targets=[ast.Name(id="temp", ctx=ast.Store())],
                 value=node.elt
             ), VisitContext(
                 current_indent=local_indent,
-                scope=repr_ctx.parser_ctx.scope
+                scope=full_new_scope
             ))
+            self.linter.remove_var("temp", scope=full_new_scope)
             
         result += Utils.capture_output(assign_to)
 

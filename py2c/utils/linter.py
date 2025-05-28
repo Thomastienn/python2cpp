@@ -24,7 +24,9 @@ class Linter:
         self.typed_vars = {
             "global": {},
         }
-        self.has_typed = {}
+        self.has_typed = {
+            "global": {},
+        }
         self.funcs = funcs
 
     def add_var(self, name, v_type, scope=["global"]):
@@ -49,7 +51,14 @@ class Linter:
             if s not in cur_scope:
                 return False
             cur_scope = cur_scope[s]
-        return name in cur_scope
+        return name in cur_scope and cur_scope[name]
+
+    def unset_has_type(self, name, scope=["global"]):
+        cur_scope = self.has_typed
+        for s in scope:
+            assert s in cur_scope, "Scope not found"
+            cur_scope = cur_scope[s]
+        cur_scope[name] = False
 
     def remove_var(self, name, scope=["global"]):
         cur_scope = self.typed_vars
@@ -81,10 +90,8 @@ class Linter:
         """
         cur = self.typed_vars
         st = []
-        print(str(self.typed_vars).replace('\'', '\"'), file=sys.stderr)
-        print("-" * 20, file=sys.stderr)
         for s in scope:
-            assert s in cur, f"Scope not found \"{s}\" in {scope}, stop finding {name}"
+            assert s in cur, f"Scope not found \"{s}\" in {scope}, stop finding {name}, current stack {cur}"
             cur = cur[s]
             st.append(cur)
         while st:
@@ -107,6 +114,7 @@ class Linter:
         if func_name in Linter.TYPES:
             return func_name
         
+        # TODO: Do lambda functions too
         if func_name == "map":
             return func_node.args[0].id
         elif func_name == "input":
@@ -114,7 +122,8 @@ class Linter:
         elif func_name == "len":
             return "int"
 
-        return func_name
+        # TODO: Add more
+        return "Unknown"
 
     def pattern_pytype(self) -> list:
         return [

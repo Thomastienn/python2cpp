@@ -18,6 +18,12 @@ class ExprParser:
         if self.allow_print:
             print((constants.TAB * current_indent) + line, end=end)
 
+    def visit_Str(self, string: str):
+        if string == "DEBUG":
+            print(string, file=self.debug)
+            return
+        raise RuntimeError("You are not suppose to end up here")
+        
     def visit(self, node: ast.AST, visit_ctx: VisitContext = VisitContext()):
         if visit_ctx.allow_print is None:
             allow_print = self.allow_print
@@ -30,7 +36,9 @@ class ExprParser:
         self.allow_print = allow_print
         
         # DEBUG STUFF
-        print(self.linter.typed_vars, file=self.debug)
+        print(str(self.linter.has_typed).replace('\'', '\"'), file=self.debug)
+        print("-" * 5, file=self.debug)
+        print(str(self.linter.typed_vars).replace('\'', '\"'), file=self.debug)
         print(visit_ctx, file=self.debug)
         print(node, file=self.debug)
         print(self.linter.funcs, file=self.debug)
@@ -58,6 +66,10 @@ class ExprParser:
     def set_type(self, name, scope):
         if self.allow_print:
             self.linter.set_has_type(name, scope)
+
+    def unset_type(self, name, scope):
+        if self.allow_print:
+            self.linter.unset_has_type(name, scope)
 
     def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
         targets = node.targets
@@ -109,6 +121,8 @@ class ExprParser:
             else:
                 self.set_type(target_str, visit_ctx.scope)
                 self.print_line(f"{'auto' if is_unpacking else cpp_type}{' [' if is_unpacking else ' '}{target_str}{']' if is_unpacking else ''} = {value_str};", visit_ctx.current_indent)
+                if target_str == "temp":
+                    self.unset_type(target_str, visit_ctx.scope)
 
         return "None"
 
@@ -223,12 +237,14 @@ class ExprParser:
         
         return expected_return_type
 
-    def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext):
+    def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type):
         """
             Print for i loop
             PARAMS
             node: ast.Call which is calling range() func
         """
+        if save_type:
+            self.linter.add_var(var, "int", scope=visit_ctx.scope)
         start = 0
         end = 0
         step = 1
@@ -253,7 +269,7 @@ class ExprParser:
         add_str = f"{var}++" if step == 1 else f"{var} += {step}"
         self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
 
-    def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext):
+    def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type):
         repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
@@ -264,21 +280,35 @@ class ExprParser:
             processor=self,
             parser_ctx = visit_ctx
         )
-        self.print_line(f"for ({func_return_type} {var} : {self.repr.visit(node, repr_ctx_2)}) {{", visit_ctx.current_indent)
+        # We have to remove the parent type
+        func_return_type = func_return_type[1:]
+        if len(func_return_type) == 1:
+            func_return_type = func_return_type[0]
+        cpp_type = self.linter.python_to_cpp_type(func_return_type)
+        if save_type:
+            self.linter.add_var(var, func_return_type, scope=visit_ctx.scope)
+        self.print_line(f"for ({cpp_type} {var} : {self.repr.visit(node, repr_ctx_2)}) {{", visit_ctx.current_indent)
 
-    def print_forloop(self, node: ast.For, visit_ctx: VisitContext):
+    def print_forloop(self, node: ast.For, visit_ctx: VisitContext, save_type=True):
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx=visit_ctx
         )
+        target_visited = self.repr.visit(node.target, repr_ctx)
         if isinstance(node.iter, ast.Call) and node.iter.func.id == "range":
-            self.print_for_i(self.repr.visit(node.target, repr_ctx), node.iter, visit_ctx)
+            self.print_for_i(target_visited, node.iter, visit_ctx, save_type)
         else:
-            self.print_for_iter(self.repr.visit(node.target, repr_ctx), node.iter, visit_ctx)
+            self.print_for_iter(target_visited, node.iter, visit_ctx, save_type)
 
     def visit_For(self, node: ast.For, visit_ctx: VisitContext):
         # self.print_line(f"for ({self.repr.visit(node.target)} in {self.repr.visit(node.iter)}) {{", visit_ctx.current_indent)
         self.print_forloop(node, visit_ctx)
+
+        # Add this target to the scope linter
+        repr_ctx = ReprVisitContext(
+            processor=self,
+            parser_ctx=visit_ctx
+        )
             
         for expr in node.body:
             new_ctx = VisitContext(

@@ -44,9 +44,13 @@ def parse(tree):
 
     # MAIN FUNCTION
     print("int main() {")
-    for exp in normal_exps:
+    for i,exp in enumerate(normal_exps):
+        print(f"MAIN: {i}", file=printer.debug)
         printer.visit(exp, VisitContext(allow_print=True, current_indent=1))
     print(TAB + "return 0;")
     print("}")
 
     print(printer.linter.typed_vars, file=sys.stderr)
+
+    printer.visit("DEBUG", VisitContext(allow_print=False))
+    printer.debug.close()
