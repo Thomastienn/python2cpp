@@ -57,8 +57,7 @@ class ExprParser:
 
     def set_type(self, name, scope):
         if self.allow_print:
-            self.linter.has_typed[scope][name] = True
-
+            self.linter.set_has_type(name, scope)
 
     def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
         targets = node.targets
@@ -104,9 +103,8 @@ class ExprParser:
                 if name is None:
                     self.linter.add_var(target_str, type_name_val, scope=visit_ctx.scope)
                     
-
-            if target_str in self.linter.has_typed[visit_ctx.scope] or \
-                name in self.linter.has_typed[visit_ctx.scope]:
+            if self.linter.does_has_type(target_str, scope=visit_ctx.scope) or \
+                self.linter.does_has_type(name, scope=visit_ctx.scope):
                 self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
             else:
                 self.set_type(target_str, visit_ctx.scope)
@@ -139,21 +137,23 @@ class ExprParser:
             return_type=True,
             parser_ctx=visit_ctx
         )
+        # TODO : Support nested scope
+        # Now it assumes all functions are global
         for func_param, arg in zip(func_ast_obj.args.args, node.args):
             # Get the type from argument and pass it to parameter
             type_ = self.repr.visit(arg, repr_ctx)
-            self.linter.add_var(func_param.arg, type_, scope=func_name)
+            self.linter.add_var(func_param.arg, type_, scope=["global", func_name])
 
         # For keywords like a=1, b=(math.pi*2) something
         for arg, value in node.keywords:
             type_ = self.repr.visit(arg, repr_ctx)
-            self.linter.add_var(arg, type_, scope=func_name)
+            self.linter.add_var(arg, type_, scope=["global", func_name])
 
         # Now need to return the type by going to function definition
         new_ctx = VisitContext(
             current_indent=visit_ctx.current_indent,
             allow_print = False,
-            scope=func._ast_object.name
+            scope=["global", func._ast_object.name]
         )
         return_type = self.visit(func._ast_object, new_ctx)
         func.return_pytype = return_type
@@ -166,6 +166,7 @@ class ExprParser:
         def ctype_arg(name):
             return self.linter.python_to_cpp_type(pytype_arg(name))
         
+
         arguments = []
         for arg in node.args.args:
             arguments.append(ctype_arg(arg.arg) + " " + arg.arg)
@@ -185,10 +186,13 @@ class ExprParser:
                         continue
                     walk_already.add(name_func)
                     if expected_return_type == "None":
+                        new_scope = deepcopy(visit_ctx.scope)
+                        new_scope.pop()
+                        new_scope.append(name_func)
                         new_ctx = VisitContext(
                             current_indent = visit_ctx.current_indent + 1,
                             allow_print = False,
-                            scope = name_func
+                            scope = new_scope
                         )
                         expected_return_type = self.visit(return_val, new_ctx)
                 else:
@@ -203,7 +207,7 @@ class ExprParser:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
                 allow_print = False,
-                scope = node.name,
+                scope = visit_ctx.scope,
             )
             self.visit(expr, new_ctx)
             

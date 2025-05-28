@@ -37,7 +37,9 @@ def parse(tree):
 
     # ALL DECLARED FUNCTIONS
     for func in funcs.values():
-        printer.visit(func._ast_object, VisitContext(scope=func.name, allow_print=True))
+        printer.visit(func._ast_object, VisitContext(
+            scope=["global", func.name], allow_print=True
+        ))
     print()
 
     # MAIN FUNCTION

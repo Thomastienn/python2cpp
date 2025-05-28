@@ -21,15 +21,42 @@ class Linter:
         "None": "void",
     }
     def __init__(self, funcs: dict[str, Function]):
-        self.typed_vars = defaultdict(dict)
-        self.has_typed = defaultdict(lambda : defaultdict(bool))
+        self.typed_vars = {
+            "global": {},
+        }
+        self.has_typed = {}
         self.funcs = funcs
 
-    def add_var(self, name, v_type, scope="global"):
-        self.typed_vars[scope][name] = v_type
+    def add_var(self, name, v_type, scope=["global"]):
+        cur_scope = self.typed_vars
+        for s in scope:
+            if s not in cur_scope:
+                cur_scope[s] = {}
+            cur_scope = cur_scope[s]
+        cur_scope[name] = v_type
 
-    def remove_var(self, name, scope="global"):
-        del self.typed_vars[scope][name]
+    def set_has_type(self, name, scope=["global"]):
+        cur_scope = self.has_typed
+        for s in scope:
+            if s not in cur_scope:
+                cur_scope[s] = {}
+            cur_scope = cur_scope[s]
+        cur_scope[name] = True
+
+    def does_has_type(self, name, scope=["global"]):
+        cur_scope = self.has_typed
+        for s in scope:
+            if s not in cur_scope:
+                return False
+            cur_scope = cur_scope[s]
+        return name in cur_scope
+
+    def remove_var(self, name, scope=["global"]):
+        cur_scope = self.typed_vars
+        for s in scope:
+            assert s in cur_scope, "Scope not found"
+            cur_scope = cur_scope[s]
+        del cur_scope[name]
 
     def type_list_to_str(self, type_list: list[str]) -> str:
         return_type = "list<"
@@ -42,17 +69,29 @@ class Linter:
         return return_type
 
         
-    def get_var_type(self, name, scope="global") -> str | list[str]:
-        try:
-            return_type = self.typed_vars[scope][name]
-        except KeyError:
-            try:
-                # print(self.typed_vars, file=sys.stderr)
-                # print(name, scope, file=sys.stderr)
-                return_type = self.typed_vars["global"][name]
-            except KeyError:
-                raise KeyError(f"Variable {name} not found")
-        return deepcopy(return_type)
+    def get_var_type(self, name, scope=["global"]) -> str | list[str]:
+        """
+            Get the type of a variable by going from innermost to outermost
+            params:
+                name: The name of the variable
+                scope: The full nested scope of the variable
+            returns:
+                The type of the variable if found
+                raise KeyError if not found
+        """
+        cur = self.typed_vars
+        st = []
+        print(str(self.typed_vars).replace('\'', '\"'), file=sys.stderr)
+        print("-" * 20, file=sys.stderr)
+        for s in scope:
+            assert s in cur, f"Scope not found \"{s}\" in {scope}, stop finding {name}"
+            cur = cur[s]
+            st.append(cur)
+        while st:
+            s = st.pop()
+            if name in s:
+                return deepcopy(s[name])
+        raise KeyError(f"Variable {name} not found")
 
     def add_func(self, name, f_type):
         self.typed_funcs[name] = f_type
@@ -112,7 +151,7 @@ class Linter:
             raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
         return Linter.TYPES[t_name]
 
-    def get_subscript_type(self, base_name, size, scope="global"):
+    def get_subscript_type(self, base_name, size, scope=["global"]):
         return self.get_var_type(base_name, scope)[size]
 
     def get_binop_type(self, pytype_left, pytype_right, op: str):

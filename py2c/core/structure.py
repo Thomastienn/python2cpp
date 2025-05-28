@@ -14,7 +14,7 @@ class Function(BaseModel):
 class VisitContext(BaseModel):
     current_indent: int = 0
     allow_print: bool | None = None
-    scope: str = "global"
+    scope: list[str] = ["global"] # Nested scope
     
 class ReprVisitContext(BaseModel):
     processor: "ExprParser"
