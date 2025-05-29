@@ -13,6 +13,7 @@ class ExprParser:
         self.repr = ReprVisitor(self.linter)
         self.allow_print = True
         self.debug = open((os.devnull if constants.PROD else "debug.out"), "w")
+        self.num_for = 0
 
     def print_line(self, line: str, current_indent: int, end="\n"):
         if self.allow_print:
@@ -244,16 +245,16 @@ class ExprParser:
         
         return expected_return_type
 
-    def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type, for_id=0):
+    def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type):
         """
             Print for i loop
             PARAMS
             node: ast.Call which is calling range() func
         """
         if save_type:
-            self.linter.add_var(var, "int", scope=visit_ctx.scope+[f"for_{for_id}"])
+            self.linter.add_var(var, "int", scope=visit_ctx.scope+[f"for_{self.num_for}"])
         start = 0
-        end = 0
+        end = None
         step = 1
         repr_ctx = ReprVisitContext(
             processor=self,
@@ -273,10 +274,11 @@ class ExprParser:
         else:
             raise RuntimeError("Too many arguments for range()")
             
+        assert end != None, "my badd, end of range should be parsed"
         add_str = f"{var}++" if step == 1 else f"{var} += {step}"
         self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
 
-    def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type, for_id=0):
+    def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type):
         repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
@@ -293,7 +295,7 @@ class ExprParser:
             func_return_type = func_return_type[0]
         cpp_type = self.linter.python_to_cpp_type(func_return_type)
         if save_type:
-            self.linter.add_var(var, func_return_type, scope=visit_ctx.scope+[f"for_{for_id}"])
+            self.linter.add_var(var, func_return_type, scope=visit_ctx.scope+[f"for_{self.num_for}"])
         self.print_line(f"for ({cpp_type} {var} : {self.repr.visit(node, repr_ctx_2)}) {{", visit_ctx.current_indent)
 
     def print_forloop(self, node: ast.For, visit_ctx: VisitContext, save_type=True):
@@ -302,14 +304,14 @@ class ExprParser:
             parser_ctx=visit_ctx
         )
         target_visited = self.repr.visit(node.target, repr_ctx)
-        for_id = id(node)
         if isinstance(node.iter, ast.Call) and node.iter.func.id == "range":
-            self.print_for_i(target_visited, node.iter, visit_ctx, save_type, for_id)
+            self.print_for_i(target_visited, node.iter, visit_ctx, save_type)
         else:
-            self.print_for_iter(target_visited, node.iter, visit_ctx, save_type, for_id)
+            self.print_for_iter(target_visited, node.iter, visit_ctx, save_type)
 
     def visit_For(self, node: ast.For, visit_ctx: VisitContext):
         # self.print_line(f"for ({self.repr.visit(node.target)} in {self.repr.visit(node.iter)}) {{", visit_ctx.current_indent)
+        self.num_for += 1
         self.print_forloop(node, visit_ctx)
 
         # Add this target to the scope linter

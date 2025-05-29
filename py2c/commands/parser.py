@@ -25,7 +25,8 @@ def parse(tree):
 
     # Process the global scope first to know the type of arguments of functions and each type of variables
     # Like pre-processing
-    for exp in normal_exps:
+    for i, exp in enumerate(normal_exps):
+        print(f"SCAN: {i}", file=printer.debug)
         printer.visit(exp, VisitContext(allow_print=False))
 
     # JUST A HEADER LIB

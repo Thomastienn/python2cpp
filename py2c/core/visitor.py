@@ -125,6 +125,25 @@ class ReprVisitor():
             template_name: str = CPPTemplate.CINPUT.name
             Utils.template_uses.add(template_name)
             return f"{template_name.lower()}()"
+        if func_name == "map":
+            # We can use a for loop if it's just casting values
+            arg1 = self.visit(node.args[0], new_ctx)
+            arg2 = self.visit(node.args[1], new_ctx)
+            if arg1 in Linter.TYPES:
+                result = "[&] {\n"
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}vector<{arg1}>temp;\n"
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}auto arg2 = {arg2};\n"
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}for (int i = 0; i < arg2.size()){{\n"
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+2)}temp.push_back(({arg1})arg2[i]);\n"
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}}}\n"
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}return temp;\n"
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent)}}}"
+                return result
+            
+            # When we need to use lambda
+            template_name: str = CPPTemplate.CMAP.name
+            Utils.template_uses.add(template_name)
+            return f"{template_name.lower()}({self.visit(node.args[0], new_ctx)}, {self.visit(node.args[1], new_ctx)})"
         if func_name in Linter.TYPES:
             return f"({func_name}) ({self.visit(node.args[0], new_ctx)})"
         return None
@@ -234,9 +253,7 @@ class ReprVisitor():
                 new_scope = f"lambda{int(last_scope[len('lambda'):]) + 1}"
             full_new_scope = repr_ctx.parser_ctx.scope + [new_scope]
 
-            # WARNING: IDK WHY THIS WORKS, BUT IT DOES
-            # It might break something later
-            # I think it got overridden later so this is just bypassing the check
+            # WARNING: This is a hack, fix in the future
             self.linter.add_var("temp", "This doesn't matter", scope=full_new_scope)
             repr_ctx.processor.visit(ast.Assign(
                 targets=[ast.Name(id="temp", ctx=ast.Store())],

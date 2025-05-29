@@ -60,5 +60,20 @@ class CPPTemplate(Enum):
         return result;
     }""")
 
+    CMAP = textwrap.dedent("""
+    template <typename Func, typename T>
+    vector<decltype(declval<Func>()(declval<T>()))> cmap(Func f, const vector<T>& vec) {
+        using ReturnType = decltype(f(vec[0]));
+        vector<ReturnType> result;
+        result.reserve(vec.size());
+
+        for (const auto& item : vec) {
+            result.push_back(f(item));
+        }
+
+        return result;
+    }
+    """)
+
 
     
