@@ -1,5 +1,6 @@
 __pycache__
 *.err
 *.out
+*.cpp
 test.py
 python*.py

@@ -23,7 +23,7 @@ def parse(tree):
         else:
             normal_exps.append(exp)
 
-    # Process the global scope first to know the type of arguments of functions
+    # Process the global scope first to know the type of arguments of functions and each type of variables
     # Like pre-processing
     for exp in normal_exps:
         printer.visit(exp, VisitContext(allow_print=False))
@@ -32,9 +32,11 @@ def parse(tree):
     print(HEADER)
 
     # ALL TEMPLATES USED
+    print("\n// Just my templates to replace python functions",end="")
     for template in Utils.template_uses:
         print(CPPTemplate[template].value)
 
+    print("\n// Your functions are here")
     # ALL DECLARED FUNCTIONS
     for func in funcs.values():
         printer.visit(func._ast_object, VisitContext(

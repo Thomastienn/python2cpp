@@ -14,8 +14,7 @@ class CPPTemplate(Enum):
             b >>= 1;
         }
         return res;
-    }
-    """)
+    }""")
 
     MODPOW = textwrap.dedent("""
     template<typename T>
@@ -29,8 +28,7 @@ class CPPTemplate(Enum):
             b >>= 1;
         }
         return res;
-    }
-    """)
+    }""")
 
     ENUMERATE_CPP = textwrap.dedent("""
     template <ranges::input_range R>
@@ -40,16 +38,27 @@ class CPPTemplate(Enum):
             [&index](auto&& elem) mutable {
                 return pair{index++, elem};
             });
-    }
-    """)
+    }""")
 
     CINPUT = textwrap.dedent("""
     string cinput() {
         string s;
         getline(cin, s);
         return s;
-    }
-    """)
+    }""")
+
+    CSPLIT = textwrap.dedent("""
+    vector<string> csplit(const string& s, const string& delim) {
+        vector<string> result;
+        size_t start = 0, end;
+
+        while ((end = s.find(delim, start)) != string::npos) {
+            result.push_back(s.substr(start, end - start));
+            start = end + delim.length();
+        }
+        result.push_back(s.substr(start));
+        return result;
+    }""")
 
 
     

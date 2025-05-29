@@ -1,6 +1,6 @@
 import sys, io
 class Utils:
-    # List of names of template used
+    # List of names of template used. Must be the name of the enum
     template_uses: set[str] = set()
     def get_file_no_ext(filename):
         if "." in filename:

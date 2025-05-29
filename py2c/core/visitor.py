@@ -1,6 +1,7 @@
 import sys
 import ast
 import io
+from collections import OrderedDict
 from py2c.utils.linter import Linter
 from py2c.utils.utils import Utils
 from py2c.utils.constants import TAB
@@ -140,14 +141,48 @@ class ReprVisitor():
             processor=repr_ctx.processor,
             parser_ctx=repr_ctx.parser_ctx
         )
-        return f"{self.visit(node.func, new_ctx)}({', '.join(self.visit(arg, new_ctx) for arg in node.args)})"
+        result_str = self.visit(node.func, new_ctx)
+        # TODO: This not fixing it. We need a better way
+        if not isinstance(node.func, ast.Attribute):
+            result_str += f"({', '.join(self.visit(arg, new_ctx) for arg in node.args)})"
+        return result_str
+
+    def handle_pyattr(self, node_name:str, attr_name: str):
+        if attr_name == "sort":
+            # TODO: Handle key of sort (use lambda func)
+            return f"sort({node_name}.begin(), {node_name}.end())"
+        
+        if attr_name == "append":
+            return f"{node_name}.push_back"
+
+        if attr_name == "split":
+            func_name = CPPTemplate.CSPLIT.name
+            Utils.template_uses.add(func_name)
+            return f"{func_name.lower()}({node_name})"
+
+        raise NotImplementedError
 
     def visit_Attribute(self, node: ast.Attribute, repr_ctx: ReprVisitContext):
+        if repr_ctx.return_type:
+            # We need to know the type of the one using this attribute first
+            new_ctx = ReprVisitContext(
+                return_type=True,
+                processor=repr_ctx.processor,
+                parser_ctx=repr_ctx.parser_ctx
+            )
+            type_ = self.visit(node.value, new_ctx)
+            return self.linter.get_attr_type(type_, node.attr)
+            
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
             parser_ctx=repr_ctx.parser_ctx
         )
-        return f"{self.visit(node.value, new_ctx)}.{node.attr}"
+        node_name = self.visit(node.value, new_ctx)
+        try:
+            result = self.handle_pyattr(node_name, node.attr)
+            return result
+        except NotImplementedError:
+            return f"{self.visit(node.value, new_ctx)}.{node.attr}"
 
     def visit_ListComp(self, node: ast.ListComp, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
@@ -170,10 +205,11 @@ class ReprVisitor():
             parser_ctx=repr_ctx.parser_ctx
         )
 
+        cpp_type_assign = self.linter.python_to_cpp_type(repr_ctx.pytype_assign_from)
         result = "[&] {\n"
         local_indent = repr_ctx.parser_ctx.current_indent + 1
-
         # FOR LOOPS AND IF STATEMENTS
+        result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}{cpp_type_assign}parent;\n"
         for gen in node.generators:
             assert isinstance(gen, ast.comprehension), "Generator is not comprehension"
             for_node = ast.For(
@@ -212,11 +248,13 @@ class ReprVisitor():
             self.linter.remove_var("temp", scope=full_new_scope)
             
         result += Utils.capture_output(assign_to)
+        result += f"{TAB * local_indent}parent.push_back(temp);\n"
 
         # CLOSING BRACKETS
         for ind in range(local_indent-1, repr_ctx.parser_ctx.current_indent,-1):
             result += TAB * ind + "}\n"
-
+            
+        result += f"{TAB * ind}return parent;\n"
         result += TAB * repr_ctx.parser_ctx.current_indent + "}()"
         return result
 

@@ -12,13 +12,13 @@ def run():
             if len(sys.argv) > 2:
                 output_file = sys.argv[2]
             else:
-                output_file = f"{input_file_no_ext}.out"
+                output_file = f"{input_file_no_ext}.cpp"
         else:
             raise Exception("No input file")
     else:
         input_file = "python.py"
         input_file_no_ext = Utils.get_file_no_ext(input_file)
-        output_file = f"{input_file_no_ext}.out"
+        output_file = f"{input_file_no_ext}.cpp"
             
     with open(input_file, 'r') as f:
         tree = ast.parse(f.read())

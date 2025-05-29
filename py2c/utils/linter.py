@@ -125,24 +125,6 @@ class Linter:
         # TODO: Add more
         return "Unknown"
 
-    def pattern_pytype(self) -> list:
-        return [
-            ("list", r"\[(.*)\]|^list\((.*)\)"),
-            ("set", r"\{[^:]\}|^set\((.*)\)"),
-            ("dict", r"\{.+:{1,}.*\}|^dict\((.*)\)"),
-            ("tuple", r".*,.*|^tuple\((.*)\)"),
-        ]
-
-    def pattern_constants(self):
-        return [
-            r"\bNone\b",
-            r"\bTrue\b",
-            r"\bFalse\b",
-            r"\d+",
-            r"float\(.+\)",
-            r"int\(.+\)",
-            r"\d+\.\d*([eE][+-]?\d+)?"
-        ]
     
     def python_to_cpp_type(self, t_name: str | list[str]):
         if t_name is None:
@@ -163,6 +145,18 @@ class Linter:
     def get_subscript_type(self, base_name, size, scope=["global"]):
         return self.get_var_type(base_name, scope)[size]
 
+    def get_attr_type(self, pytype_from, attr: str):
+        if attr == "split":
+            return ["list", "str"]
+        if attr in ["strip", "lower", "upper", "replace"]:
+            return "str"
+        if attr in ["sort", "reverse"]:
+            return pytype_from
+        if attr == "pop":
+            return pytype_from[1:]
+    
+        raise NotImplementedError(f"Attribute {attr} not implemented")
+    
     def get_binop_type(self, pytype_left, pytype_right, op: str):
         if pytype_left not in Linter.TYPES:
             pytype_left = self.get_var_type(pytype_left)
