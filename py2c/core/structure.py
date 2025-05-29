@@ -19,8 +19,6 @@ class VisitContext(BaseModel):
 class ReprVisitContext(BaseModel):
     processor: "ExprParser"
     return_type: bool = False
-    # The python type of the variable that is being assigned
-    pytype_assign_from: str | list[str] | None = None
     parser_ctx: VisitContext 
     
     model_config = {

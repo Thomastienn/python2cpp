@@ -1,11 +1,16 @@
 # IN PROGRESS
+
 ### Note
+
 - I assume the python code was runnable without runtime or syntax error
 - It has not yet support for libraries (only vanilla python)
 - It cannot copy comments to cpp yet (low priority)
 - It can still produce syntax error (use with caution)
+
 ### DEMO
+
 #### Python
+
 ```python
 mod = 10**9+7
 def multiply(a, b):
@@ -15,7 +20,7 @@ def multiply(a, b):
             for k in range(len(b)):
                 res[i][j] = (res[i][j] + a[i][k] * b[k][j])%mod
     return res
-    
+
 def power(x, n):
     res = [[1 if j == i else 0 for j in range(len(x))] for i in range(len(x))]
     while n:
@@ -40,7 +45,7 @@ for i in range(m):
         A[v][-1] += 1
     else:
         A[v][u] += 1
-    
+
 
 A = power(A, t)
 A = multiply(A, [[1] for _ in range(n+1)])
@@ -50,25 +55,14 @@ for i in range(n):
     ans += A[i][0]
 print(ans)
 ```
+
 #### C++
+
 ```cpp
 #include <bits/stdc++.h>
 using namespace std;
 
 // Just my templates to replace python functions
-template<typename T>
-T fastpow(T a, T b) {
-    T res = 1;
-    while (b > 0) {
-        if (b & 1) {
-            res *= a;
-        }
-        a *= a;
-        b >>= 1;
-    }
-    return res;
-}
-
 vector<string> csplit(const string& s, const string& delim) {
     vector<string> result;
     size_t start = 0, end;
@@ -87,13 +81,26 @@ string cinput() {
     return s;
 }
 
+template<typename T>
+T fastpow(T a, T b) {
+    T res = 1;
+    while (b > 0) {
+        if (b & 1) {
+            res *= a;
+        }
+        a *= a;
+        b >>= 1;
+    }
+    return res;
+}
+
 // Your functions are here
 vector<vector<int>> multiply(vector<vector<int>> a, vector<vector<int>> b) {
     vector<vector<int>> res = [&] {
-        vector<vector<int>>parent;
+        vector<vector<int>> parent;
         for (int i = 0; i < a.size(); i++) {
             vector<int> temp = [&] {
-                vector<int>parent;
+                vector<int> parent;
                 for (int j = 0; j < b[0].size(); j++) {
                     int temp = 0;
                     parent.push_back(temp);
@@ -115,10 +122,10 @@ vector<vector<int>> multiply(vector<vector<int>> a, vector<vector<int>> b) {
 }
 vector<vector<int>> power(vector<vector<int>> x, int n) {
     vector<vector<int>> res = [&] {
-        vector<vector<int>>parent;
+        vector<vector<int>> parent;
         for (int i = 0; i < x.size(); i++) {
             vector<int> temp = [&] {
-                vector<int>parent;
+                vector<int> parent;
                 for (int j = 0; j < x.size(); j++) {
                     int temp = (j == i)? (1) : (0);
                     parent.push_back(temp);
@@ -150,10 +157,10 @@ int main() {
         return temp;
     };
     vector<vector<int>> A = [&] {
-        vector<vector<int>>parent;
+        vector<vector<int>> parent;
         for (int j = 0; j < (n + 1); j++) {
             vector<int> temp = [&] {
-                vector<int>parent;
+                vector<int> parent;
                 for (int i = 0; i < (n + 1); i++) {
                     int temp = (i == j)? (1) : (0);
                     parent.push_back(temp);
@@ -165,7 +172,7 @@ int main() {
         return parent;
     }();
     vector<int> types = [&] {
-        vector<int>parent;
+        vector<int> parent;
         for (int _ = 0; _ < n; _++) {
             int temp = (int) (cinput());
             parent.push_back(temp);
@@ -185,7 +192,7 @@ int main() {
             A[u][A[u].size() - 1] += 1;
         }
         else {
-            A[u][v] += 1;
+            A[u[v] += 1;
         }
         if (types[u] == 1) {
             A[v][A[v].size() - 1] += 1;
@@ -196,7 +203,7 @@ int main() {
     }
     A = power(A, t);
     A = multiply(A, [&] {
-        voidparent;
+        vector<vector<int>> parent;
         for (int _ = 0; _ < (n + 1); _++) {
             vector<int> temp = {1};
             parent.push_back(temp);

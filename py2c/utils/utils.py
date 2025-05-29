@@ -7,12 +7,14 @@ class Utils:
             return filename.split(".")[0]
         else:
             return filename
-    def capture_output(func, *args):
+    def capture_output(func, *args, **kwargs):
         original = sys.stdout
         sys.stdout = io.StringIO()
-        func(*args)
+        ret = func(*args)
         output = sys.stdout.getvalue()
         sys.stdout = original
+        if "include_return" in kwargs and kwargs["include_return"]:
+            return output, ret
         return output
 
 

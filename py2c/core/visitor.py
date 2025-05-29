@@ -224,11 +224,10 @@ class ReprVisitor():
             parser_ctx=repr_ctx.parser_ctx
         )
 
-        cpp_type_assign = self.linter.python_to_cpp_type(repr_ctx.pytype_assign_from)
         result = "[&] {\n"
         local_indent = repr_ctx.parser_ctx.current_indent + 1
         # FOR LOOPS AND IF STATEMENTS
-        result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}{cpp_type_assign}parent;\n"
+        gens_str = ""
         for gen in node.generators:
             assert isinstance(gen, ast.comprehension), "Generator is not comprehension"
             for_node = ast.For(
@@ -241,11 +240,10 @@ class ReprVisitor():
                 current_indent=local_indent,
                 scope=repr_ctx.parser_ctx.scope
             )
-            result += Utils.capture_output(repr_ctx.processor.print_forloop, for_node, proc_ctx)
+            gens_str += Utils.capture_output(repr_ctx.processor.print_forloop, for_node, proc_ctx)
             local_indent += 1 + len(gen.ifs)
 
         # BODY
-        # TODO : Find what this assign to.
         def assign_to():
             last_scope = repr_ctx.parser_ctx.scope[-1]
             new_scope = "lambda0"
@@ -262,9 +260,18 @@ class ReprVisitor():
                 current_indent=local_indent,
                 scope=full_new_scope
             ))
+            temp_type = self.linter.get_var_type("temp", scope=full_new_scope)
             self.linter.remove_var("temp", scope=full_new_scope)
+            return temp_type
             
-        result += Utils.capture_output(assign_to)
+        assign_body, temp_type = Utils.capture_output(assign_to, include_return=True)
+        if not isinstance(temp_type, list):
+            temp_type = [temp_type]
+        parent_type = ["list"] + temp_type
+        cpp_type = self.linter.python_to_cpp_type(parent_type)
+        result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}{cpp_type} parent;\n"
+        result += gens_str
+        result += assign_body
         result += f"{TAB * local_indent}parent.push_back(temp);\n"
 
         # CLOSING BRACKETS
