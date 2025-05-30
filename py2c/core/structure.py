@@ -8,8 +8,9 @@ if TYPE_CHECKING:
 
 class Function(BaseModel):
     name: str
-    return_pytype: str | None
+    return_pytype: list[str] | str | None
     _ast_object: ast.FunctionDef = PrivateAttr()
+    user_func: bool = False
     
 class VisitContext(BaseModel):
     current_indent: int = 0
@@ -20,6 +21,7 @@ class ReprVisitContext(BaseModel):
     processor: "ExprParser"
     return_type: bool = False
     parser_ctx: VisitContext 
+    expr_node: ast.AST
     
     model_config = {
         "arbitrary_types_allowed": True

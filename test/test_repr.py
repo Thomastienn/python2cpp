@@ -23,7 +23,7 @@ class TestRepr(unittest.TestCase):
                 allow_print = True
             )
         ))
-        assert s == "tuple_size<decltype(a_tuple)>::value", f"{s!r}"
+        self.assertEqual(s,"tuple_size<decltype(a_tuple)>::value", f"{s!r}")
 
 if __name__ == "__main__":
     unittest.main()

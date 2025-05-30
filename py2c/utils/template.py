@@ -1,11 +1,20 @@
 from enum import Enum
 import textwrap
 
+# This is in python type
+class CPPTemplateReturnType(Enum):
+    FASTPOW = "int"
+    MODPOW = "int"
+    ENUMERATE_CPP = "auto"
+    CINPUT = "str"
+    CSPLIT = ["list", "str"]
+    CMAP = "auto"
+
 class CPPTemplate(Enum):
     FASTPOW = textwrap.dedent("""
-    template<typename T>
-    T fastpow(T a, T b) {
-        T res = 1;
+    template <typename T>
+    long long fastpow(T a, T b) {
+        long long res = 1;
         while (b > 0) {
             if (b & 1) {
                 res *= a;
@@ -17,8 +26,8 @@ class CPPTemplate(Enum):
     }""")
 
     MODPOW = textwrap.dedent("""
-    template<typename T>
-    T modpow(T a, T b, T mod) {
+    template <typename T>
+    int modpow(T a, T b, T mod) {
         T res = 1;
         while (b > 0) {
             if (b & 1) {
@@ -48,7 +57,7 @@ class CPPTemplate(Enum):
     }""")
 
     CSPLIT = textwrap.dedent("""
-    vector<string> csplit(const string& s, const string& delim) {
+    vector<string> csplit(const string& s, const string& delim = " ") {
         vector<string> result;
         size_t start = 0, end;
 

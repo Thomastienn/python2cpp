@@ -38,7 +38,8 @@ class ReprVisitor():
             new_ctx = ReprVisitContext(
                 processor=repr_ctx.processor,
                 return_type=True,
-                parser_ctx=repr_ctx.parser_ctx
+                parser_ctx=repr_ctx.parser_ctx,
+                expr_node = repr_ctx.expr_node
             )
             if len(node.elts) == 2:
                 return ["pair", self.visit(node.elts[0], new_ctx), self.visit(node.elts[1], new_ctx)]
@@ -48,7 +49,8 @@ class ReprVisitor():
             return type_
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx = repr_ctx.parser_ctx
+            parser_ctx = repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         # This is only when we want to store variables
         if isinstance(node.elts[0], ast.Name) and isinstance(node.elts[0].ctx, ast.Store):
@@ -62,7 +64,8 @@ class ReprVisitor():
     def visit_Subscript(self, node: ast.Subscript, repr_ctx: ReprVisitContext):
         new_ctx = ReprVisitContext(
             processor = repr_ctx.processor,
-            parser_ctx = repr_ctx.parser_ctx
+            parser_ctx = repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         access = []
         cur = node
@@ -85,14 +88,16 @@ class ReprVisitor():
             new_ctx = ReprVisitContext(
                 return_type=True,
                 processor=repr_ctx.processor,
-                parser_ctx=repr_ctx.parser_ctx
+                parser_ctx=repr_ctx.parser_ctx,
+                expr_node = repr_ctx.expr_node
             )
             type_left = self.visit(node.left, new_ctx)
             type_right = self.visit(node.right, new_ctx)
             return self.linter.get_binop_type(type_left, type_right, self.visit_op(node.op))
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         if isinstance(node.op, ast.Pow):
             template_name = CPPTemplate.FASTPOW.name
@@ -104,17 +109,19 @@ class ReprVisitor():
     def handle_pyfunc(self, node: ast.Call, repr_ctx: ReprVisitContext):
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
+        )
+        get_type_ctx = ReprVisitContext(
+            return_type=True,
+            processor=repr_ctx.processor,
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         func_name = self.visit(node.func, new_ctx)
         # Use size universally
         if func_name == "len":
             # Figure the type of this value
-            get_type_ctx = ReprVisitContext(
-                return_type=True,
-                processor=repr_ctx.processor,
-                parser_ctx=repr_ctx.parser_ctx
-            )
             type_ = self.visit(node.args[0], get_type_ctx)
             if isinstance(type_, list) and type_[0] == "tuple":
                 return f"tuple_size<decltype({self.visit(node.args[0], new_ctx)})>::value"
@@ -130,14 +137,25 @@ class ReprVisitor():
             arg1 = self.visit(node.args[0], new_ctx)
             arg2 = self.visit(node.args[1], new_ctx)
             if arg1 in Linter.TYPES:
+                context_node = repr_ctx.expr_node
+                type_arg2 = self.visit(ast.parse(arg2).body[0].value, get_type_ctx)
+                cpp_type_arg2 = self.linter.python_to_cpp_type(type_arg2)
                 result = "[&] {\n"
                 result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}vector<{arg1}>temp;\n"
-                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}auto arg2 = {arg2};\n"
-                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}for (int i = 0; i < arg2.size()){{\n"
-                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+2)}temp.push_back(({arg1})arg2[i]);\n"
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}{cpp_type_arg2} arg2 = {arg2};\n"
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}for (int i = 0; i < arg2.size(); i++){{\n"
+
+                cast_node = ast.parse(f"{arg1}(arg2[i])").body[0].value
+                self.linter.add_var("arg2", type_arg2, scope=repr_ctx.parser_ctx.scope)
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+2)}temp.push_back({self.visit(cast_node, new_ctx)});\n"
                 result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}}}\n"
-                result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}return temp;\n"
-                result += f"{TAB * (repr_ctx.parser_ctx.current_indent)}}}"
+                if isinstance(context_node, ast.Assign) and isinstance(context_node.targets[0], ast.Tuple):
+                    vec_i_str = [f"temp[{i}]" for i in range(len(context_node.targets[0].elts))]
+                    result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}return make_tuple({', '.join(vec_i_str)});\n"
+                else:
+                    result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}return temp;\n"
+                    
+                result += f"{TAB * (repr_ctx.parser_ctx.current_indent)}}}()"
                 return result
             
             # When we need to use lambda
@@ -145,11 +163,16 @@ class ReprVisitor():
             Utils.template_uses.add(template_name)
             return f"{template_name.lower()}({self.visit(node.args[0], new_ctx)}, {self.visit(node.args[1], new_ctx)})"
         if func_name in Linter.TYPES:
+            type_other = self.visit(node.args[0], get_type_ctx)
+            if type_other == "str" and func_name == "int":
+                return f"stoi({self.visit(node.args[0], new_ctx)})"
             return f"({func_name}) ({self.visit(node.args[0], new_ctx)})"
         return None
             
     def visit_Call(self, node: ast.Call, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
+            if node.func.id in self.linter.funcs:
+                return self.linter.funcs[node.func.id].return_pytype
             return self.linter.get_type_from_pyfunction(node)
 
         res = self.handle_pyfunc(node, repr_ctx)
@@ -158,7 +181,8 @@ class ReprVisitor():
 
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         result_str = self.visit(node.func, new_ctx)
         # TODO: This not fixing it. We need a better way
@@ -187,14 +211,16 @@ class ReprVisitor():
             new_ctx = ReprVisitContext(
                 return_type=True,
                 processor=repr_ctx.processor,
-                parser_ctx=repr_ctx.parser_ctx
+                parser_ctx=repr_ctx.parser_ctx,
+                expr_node = repr_ctx.expr_node
             )
             type_ = self.visit(node.value, new_ctx)
             return self.linter.get_attr_type(type_, node.attr)
             
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         node_name = self.visit(node.value, new_ctx)
         try:
@@ -208,7 +234,8 @@ class ReprVisitor():
             new_ctx = ReprVisitContext(
                 processor=repr_ctx.processor,
                 return_type=True,
-                parser_ctx=repr_ctx.parser_ctx
+                parser_ctx=repr_ctx.parser_ctx,
+                expr_node = repr_ctx.expr_node
             )
             elt_type = self.visit(node.elt, new_ctx)
             final = ["list"]
@@ -221,7 +248,8 @@ class ReprVisitor():
         # Go from list comprehension to a seperate for loop
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
 
         result = "[&] {\n"
@@ -285,7 +313,8 @@ class ReprVisitor():
     def visit_comprehension(self, node: ast.comprehension, repr_ctx: ReprVisitContext):
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         target = self.visit(node.target, new_ctx)
         iter_repr = self.visit(node.iter, new_ctx)
@@ -297,12 +326,14 @@ class ReprVisitor():
             new_ctx = ReprVisitContext(
                 processor=repr_ctx.processor,
                 return_type=True,
-                parser_ctx=repr_ctx.parser_ctx
+                parser_ctx=repr_ctx.parser_ctx,
+                expr_node = repr_ctx.expr_node
             )
             return self.visit(node.body, new_ctx)
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         return f"({self.visit(node.test, new_ctx)})? ({self.visit(node.body, new_ctx)}) : ({self.visit(node.orelse, new_ctx)})"
         # return f"{self.visit(node.body)} if {self.visit(node.test)} else {self.visit(node.orelse)}"
@@ -310,7 +341,8 @@ class ReprVisitor():
     def visit_Compare(self, node: ast.Compare, repr_ctx: ReprVisitContext):
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         return f"{self.visit(node.left, new_ctx)} {self.visit_op(node.ops[0])} {self.visit(node.comparators[0], new_ctx)}"
 
@@ -319,7 +351,8 @@ class ReprVisitor():
             new_ctx = ReprVisitContext(
                 processor=repr_ctx.processor,
                 return_type=True,
-                parser_ctx=repr_ctx.parser_ctx
+                parser_ctx=repr_ctx.parser_ctx,
+                expr_node = repr_ctx.expr_node
             )
             if len(node.elts) == 2:
                 return ["pair", self.visit(node.elts[0], new_ctx), self.visit(node.elts[1], new_ctx)]
@@ -327,14 +360,16 @@ class ReprVisitor():
 
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         return f"{{{', '.join(self.visit(el, new_ctx) for el in node.elts)}}}"
 
     def visit_UnaryOp(self, node: ast.UnaryOp, repr_ctx: ReprVisitContext):
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         return f"{self.visit_op(node.op)}{self.visit(node.operand, new_ctx)}"    
 
@@ -343,7 +378,8 @@ class ReprVisitor():
             return "bool"
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
-            parser_ctx=repr_ctx.parser_ctx
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         return f"({self.visit(node.values[0], new_ctx)} {self.visit_op(node.op)} {self.visit(node.values[1], new_ctx)})"
 

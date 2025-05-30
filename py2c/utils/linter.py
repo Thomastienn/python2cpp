@@ -18,6 +18,7 @@ class Linter:
         "set": "set",
         "tuple": "tuple",
         "pair": "pair", # This doesnt exist but i want to make sure everything doesn't break.
+        "auto": "auto", # This one too
         "None": "void",
     }
     def __init__(self, funcs: dict[str, Function]):

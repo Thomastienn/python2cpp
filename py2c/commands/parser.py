@@ -3,7 +3,7 @@ import ast
 from py2c.core.structure import Function, VisitContext, ReprVisitContext
 from py2c.core.processor import ExprParser
 from py2c.utils.constants import HEADER, TAB
-from py2c.utils.template import CPPTemplate
+from py2c.utils.template import CPPTemplate, CPPTemplateReturnType
 from py2c.utils.utils import Utils
 
 ReprVisitContext.model_rebuild()
@@ -16,12 +16,22 @@ def parse(tree):
             myf = Function(
                 name=exp.name,
                 return_pytype=None,
-                params=[],
+                user_func=True
             )
             myf._ast_object = exp
             funcs[exp.name] = myf
         else:
             normal_exps.append(exp)
+
+    # Put my template return type inside
+    for func in CPPTemplate:
+        func_name = func.name
+        myf = Function(
+            name=func_name.lower(),
+            return_pytype=CPPTemplateReturnType[func_name].value,
+        )
+        funcs[func_name.lower()] = myf
+        
 
     # Process the global scope first to know the type of arguments of functions and each type of variables
     # Like pre-processing
@@ -40,9 +50,10 @@ def parse(tree):
     print("\n// Your functions are here")
     # ALL DECLARED FUNCTIONS
     for func in funcs.values():
-        printer.visit(func._ast_object, VisitContext(
-            scope=["global", func.name], allow_print=True
-        ))
+        if func.user_func:
+            printer.visit(func._ast_object, VisitContext(
+                scope=["global", func.name], allow_print=True
+            ))
     print()
 
     # MAIN FUNCTION
@@ -54,6 +65,7 @@ def parse(tree):
     print("}")
 
     print(printer.linter.typed_vars, file=sys.stderr)
+    print(printer.linter.funcs, file=sys.stderr)
 
     printer.visit("DEBUG", VisitContext(allow_print=False))
     printer.debug.close()

@@ -1,6 +1,7 @@
 import os
 import sys
 import ast
+from copy import deepcopy
 from py2c.utils.linter import Linter
 from py2c.utils import constants
 from py2c.core.visitor import ReprVisitor
@@ -83,19 +84,22 @@ class ExprParser:
             repr_ctx = ReprVisitContext(
                 return_type=True,
                 processor=self,
-                parser_ctx = visit_ctx
+                parser_ctx = visit_ctx,
+                expr_node = node
             )
             type_name_val = self.repr.visit(value, repr_ctx) 
 
         get_name_ctx = ReprVisitContext(
             processor=self,
-            parser_ctx = visit_ctx
+            parser_ctx = visit_ctx,
+            expr_node = node
         )
         repr_ctx = ReprVisitContext(
             return_type=False,
             processor=self,
             parser_ctx=visit_ctx,
-            pytype_assign_from = type_name_val
+            pytype_assign_from = type_name_val,
+            expr_node = node
         )
         value_str = self.repr.visit(value, repr_ctx)
 
@@ -104,7 +108,8 @@ class ExprParser:
         for target in targets:
             repr_ctx = ReprVisitContext(
                 processor=self,
-                parser_ctx = visit_ctx
+                parser_ctx = visit_ctx,
+                expr_node = node
             )
             target_str = self.repr.visit(target, repr_ctx)
 
@@ -138,7 +143,8 @@ class ExprParser:
         # self.print_line("AUG ASSIGN: ", current_indent, end="")
         repr_ctx = ReprVisitContext(
             processor=self,
-            parser_ctx=visit_ctx
+            parser_ctx=visit_ctx,
+            expr_node=node
         )
         self.print_line(self.repr.visit(node.target, repr_ctx) + " " + \
                         self.repr.visit_op(node.op) + "= " + \
@@ -157,7 +163,8 @@ class ExprParser:
         repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
-            parser_ctx=visit_ctx
+            parser_ctx=visit_ctx,
+            expr_node=node
         )
         # TODO : Support nested scope
         # Now it assumes all functions are global
@@ -222,7 +229,8 @@ class ExprParser:
                         repr_ctx = ReprVisitContext(
                             processor=self,
                             return_type=True,
-                            parser_ctx=visit_ctx
+                            parser_ctx=visit_ctx,
+                            expr_node=node   
                         )
                         expected_return_type = self.repr.visit(return_val, repr_ctx)
 
@@ -258,7 +266,8 @@ class ExprParser:
         step = 1
         repr_ctx = ReprVisitContext(
             processor=self,
-            parser_ctx=visit_ctx
+            parser_ctx=visit_ctx,
+            expr_node=node
         )
         if len(node.args) == 0:
             raise RuntimeError("No arguments for range()")
@@ -282,12 +291,14 @@ class ExprParser:
         repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
-            parser_ctx = visit_ctx
+            parser_ctx = visit_ctx,
+            expr_node=node
         )
         func_return_type = self.repr.visit(node, repr_ctx)
         repr_ctx_2 = ReprVisitContext(
             processor=self,
-            parser_ctx = visit_ctx
+            parser_ctx = visit_ctx,
+            expr_node=node
         )
         # We have to remove the parent type
         func_return_type = func_return_type[1:]
@@ -301,7 +312,8 @@ class ExprParser:
     def print_forloop(self, node: ast.For, visit_ctx: VisitContext, save_type=True):
         repr_ctx = ReprVisitContext(
             processor=self,
-            parser_ctx=visit_ctx
+            parser_ctx=visit_ctx,
+            expr_node=node
         )
         target_visited = self.repr.visit(node.target, repr_ctx)
         if isinstance(node.iter, ast.Call) and node.iter.func.id == "range":
@@ -317,7 +329,8 @@ class ExprParser:
         # Add this target to the scope linter
         repr_ctx = ReprVisitContext(
             processor=self,
-            parser_ctx=visit_ctx
+            parser_ctx=visit_ctx,
+            expr_node=node
         )
             
         for expr in node.body:
@@ -331,7 +344,8 @@ class ExprParser:
     def visit_If(self, node: ast.If, visit_ctx: VisitContext):
         repr_ctx = ReprVisitContext(
             processor=self,
-            parser_ctx = visit_ctx
+            parser_ctx = visit_ctx,
+            expr_node=node
         )
         self.print_line(
             f"if ({self.repr.visit(node.test, repr_ctx)}) {{", visit_ctx.current_indent)
@@ -360,14 +374,16 @@ class ExprParser:
         # self.print_line("RETURN: ", current_indent, end="")
         repr_ctx = ReprVisitContext(
             processor=self,
-            parser_ctx=visit_ctx
+            parser_ctx=visit_ctx,
+            expr_node=node
         )
         self.print_line(f"return {self.repr.visit(node.value, repr_ctx)};", visit_ctx.current_indent)
 
     def visit_While(self, node: ast.While, visit_ctx: VisitContext):
         repr_ctx = ReprVisitContext(
             processor=self,
-            parser_ctx = visit_ctx
+            parser_ctx = visit_ctx,
+            expr_node=node
         )
         self.print_line(
             f"while ({self.repr.visit(node.test, repr_ctx)}) {{", visit_ctx.current_indent)
@@ -383,7 +399,8 @@ class ExprParser:
         # self.print_line("EXPRESSION: ", current_indent, end="")
         repr_ctx = ReprVisitContext(
             processor=self,
-            parser_ctx=visit_ctx
+            parser_ctx=visit_ctx,
+            expr_node=node
         )
         value = self.repr.visit(node.value, repr_ctx)
         self.print_line(value + ";", visit_ctx.current_indent)
