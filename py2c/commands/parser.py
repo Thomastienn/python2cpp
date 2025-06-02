@@ -39,6 +39,7 @@ def parse(tree):
         print(f"SCAN: {i}", file=printer.debug)
         printer.visit(exp, VisitContext(allow_print=False))
 
+    print(printer.linter.funcs, file=sys.stderr)
     # JUST A HEADER LIB
     print(HEADER)
 

@@ -11,6 +11,12 @@ class Function(BaseModel):
     return_pytype: list[str] | str | None
     _ast_object: ast.FunctionDef = PrivateAttr()
     user_func: bool = False
+
+class Variable(BaseModel):
+    name: str
+    pytype: list[str] | str = "Unknown"
+    lowest_val: int = 0
+    highest_val: int = 100
     
 class VisitContext(BaseModel):
     current_indent: int = 0

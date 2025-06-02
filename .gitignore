@@ -4,3 +4,4 @@ __pycache__
 *.cpp
 test.py
 python*.py
+venv/

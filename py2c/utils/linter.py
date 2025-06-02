@@ -4,7 +4,7 @@ import sys
 from copy import deepcopy
 from collections import defaultdict
 
-from py2c.core.structure import Function
+from py2c.core.structure import Function, Variable
 
 
 class Linter:
@@ -36,7 +36,11 @@ class Linter:
             if s not in cur_scope:
                 cur_scope[s] = {}
             cur_scope = cur_scope[s]
-        cur_scope[name] = v_type
+        new_var = Variable(
+            name=name,
+            pytype=v_type
+        )
+        cur_scope[name] = new_var
 
     def set_has_type(self, name, scope=["global"]):
         cur_scope = self.has_typed
@@ -78,7 +82,7 @@ class Linter:
         return_type += ">" * (n+1)
         return return_type
 
-        
+
     def get_var_type(self, name, scope=["global"]) -> str | list[str]:
         """
             Get the type of a variable by going from innermost to outermost
@@ -98,7 +102,8 @@ class Linter:
         while st:
             s = st.pop()
             if name in s:
-                return deepcopy(s[name])
+                var: Variable = s[name]
+                return var.pytype
         raise KeyError(f"Variable {name} not found")
 
     def add_func(self, name, f_type):

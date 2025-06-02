@@ -42,7 +42,7 @@ class ExprParser:
         print("-" * 5, file=self.debug)
         print(str(self.linter.typed_vars).replace('\'', '\"'), file=self.debug)
         print(visit_ctx, file=self.debug)
-        print(node, file=self.debug)
+        print("VISITING: ", node, file=self.debug)
         print(self.linter.funcs, file=self.debug)
         print("-" * 20, file=self.debug)
         
@@ -187,6 +187,18 @@ class ExprParser:
         return_type = self.visit(func._ast_object, new_ctx)
         func.return_pytype = return_type
         return return_type
+
+    def find_first_return(self, node: ast.AST):
+        if isinstance(node, ast.Return):
+            return node
+        if isinstance(node, (ast.If, ast.For, ast.While)):
+            for expr in node.body:
+                ret = self.find_first_return(expr)
+                if ret is not None:
+                    return ret
+            return None
+        
+        return None
                           
     def visit_FunctionDef(self, node: ast.FunctionDef, visit_ctx: VisitContext):
         def pytype_arg(name):
@@ -205,8 +217,9 @@ class ExprParser:
         expected_return_type = "None"
         walk_already = {node.name}
         for expr in node.body:
-            if isinstance(expr, ast.Return):
-                return_val = expr.value
+            return_node = self.find_first_return(expr)
+            if return_node is not None:
+                return_val = return_node.value
 
                 if isinstance(return_val, ast.Call):
                     name_func = return_val.name
@@ -396,7 +409,12 @@ class ExprParser:
         self.print_line("}", visit_ctx.current_indent)
 
     def visit_Expr(self, node: ast.Expr, visit_ctx: VisitContext):
-        # self.print_line("EXPRESSION: ", current_indent, end="")
+        # TODO: Add is_scanning to visit_ctx to exec this
+        if isinstance(node.value, ast.Call):
+            for arg in node.value.args:
+                if isinstance(arg, ast.Call) and arg.func.id in self.linter.funcs:
+                    self.visit(arg, visit_ctx)
+                    
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx=visit_ctx,
