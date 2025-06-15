@@ -13,6 +13,29 @@ class ReprVisitor():
     def __init__(self, linter: Linter):
         self.linter = linter
 
+    def get_type_from_pyfunction(self, func_node: ast.Call, repr_ctx: ReprVisitContext) -> str:
+        """
+            Return the return pytype of a builtin function
+        """
+        func_name = func_node.func.id
+        if func_name in Linter.TYPES:
+            return func_name
+        
+        # TODO: Do lambda functions too
+        if func_name == "map":
+            return func_node.args[0].id
+        elif func_name == "input":
+            return "str"
+        elif func_name == "len":
+            return "int"
+        elif func_name in ["min", "max"]:
+            # Get the type of the first argument
+            first_arg = func_node.args[0]
+            return self.visit(first_arg, repr_ctx)
+
+        # TODO: Add more
+        return "Unknown"
+
     def call_print_parser(self, text:str, repr_ctx: ReprVisitContext, indent=None, end="\n"):
         if indent is None:
             indent = repr_ctx.parser_ctx.current_indent
@@ -174,7 +197,7 @@ class ReprVisitor():
             if isinstance(node.func, ast.Name):
                 if node.func.id in self.linter.funcs:
                     return self.linter.funcs[node.func.id].return_pytype
-                return self.linter.get_type_from_pyfunction(node)
+                return self.get_type_from_pyfunction(node, repr_ctx)
             if isinstance(node.func, ast.Attribute):
                 return self.linter.get_attr_type("Unknown", node.func.attr)
                 
@@ -405,7 +428,7 @@ class ReprVisitor():
             ast.Gt: ">",
             ast.GtE: ">=",
             ast.Pow: "**", # This should use a template
-            ast.FloorDiv: "//",
+            ast.FloorDiv: "/",
             ast.LShift: "<<",
             ast.RShift: ">>",
             ast.BitOr: "|",

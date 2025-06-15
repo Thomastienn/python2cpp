@@ -53,6 +53,31 @@ class Linter:
             cur_scope = cur_scope[s]
         cur_scope[name] = True
 
+    def has_higher_scope_var(self, name, scope=["global"]):
+        """
+            Check if a variable has been declared in a higher scope
+            params:
+                name: The name of the variable
+                scope: The full nested scope of the variable
+            returns:
+                True if the variable has been declared in a higher scope
+                False otherwise
+        """
+        if len(scope) == 1:
+            return False
+        cur_scope = self.typed_vars
+        in_order = []
+        for s in scope:
+            cur_scope = cur_scope[s]
+            in_order.append(cur_scope)
+        
+        for cur_s in list(reversed(in_order))[1:]:
+            if name in cur_s:
+                return True
+
+        return False
+            
+
     def does_has_type(self, name, scope=["global"]):
         cur_scope = self.has_typed
         for s in scope:
@@ -115,26 +140,6 @@ class Linter:
     def get_func_type(self, name):
         return self.typed_funcs[name]
 
-    def get_type_from_pyfunction(self, func_node: ast.Call) -> str:
-        """
-            Return the return pytype of a builtin function
-        """
-        func_name = func_node.func.id
-        if func_name in Linter.TYPES:
-            return func_name
-        
-        # TODO: Do lambda functions too
-        if func_name == "map":
-            return func_node.args[0].id
-        elif func_name == "input":
-            return "str"
-        elif func_name == "len":
-            return "int"
-
-        # TODO: Add more
-        return "Unknown"
-
-    
     def python_to_cpp_type(self, t_name: str | list[str]):
         if t_name is None:
             return "void"

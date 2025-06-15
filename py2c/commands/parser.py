@@ -39,7 +39,7 @@ def parse(tree):
         print(f"SCAN: {i}", file=printer.debug)
         printer.visit(exp, VisitContext(allow_print=False, is_scanning=True))
 
-    print(printer.linter.funcs, file=sys.stderr)
+    # print(printer.linter.funcs, file=sys.stderr)
     # JUST A HEADER LIB
     print(HEADER)
 
@@ -65,8 +65,8 @@ def parse(tree):
     print(TAB + "return 0;")
     print("}")
 
-    print(printer.linter.typed_vars, file=sys.stderr)
-    print(printer.linter.funcs, file=sys.stderr)
+    # print(printer.linter.typed_vars, file=sys.stderr)
+    # print(printer.linter.funcs, file=sys.stderr)
 
     printer.visit("DEBUG", VisitContext(allow_print=False))
     printer.debug.close()

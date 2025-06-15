@@ -82,6 +82,9 @@ class ExprParser:
         return
 
     def find_type_func(self, func_node, visit_ctx: VisitContext):
+        if isinstance(func_node.func, ast.Attribute):
+            return self.linter.get_attr_type("Unknown", func_node.func.attr)
+
         func_name = func_node.func.id
         if func_name in self.linter.funcs:
             return self.visit(func_node, visit_ctx)
@@ -100,7 +103,7 @@ class ExprParser:
 
             return ["list"] + types_inside
 
-        return self.linter.get_type_from_pyfunction(func_node)
+        return self.repr.get_type_from_pyfunction(func_node, get_type_ctx)
 
     def set_type(self, name, scope):
         if self.allow_print:
@@ -111,6 +114,24 @@ class ExprParser:
             self.linter.unset_has_type(name, scope)
 
     def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
+        def already_declared(name, scope):
+            # TODO: Check if we want to bubble up in the scope
+            # Sometimes it's ambiguous
+            
+            if name is None:
+                return False
+
+            # if name == "tree":
+            #     print(visit_ctx.scope, file=sys.stderr)
+            #     print(self.linter.does_has_type(name, scope=scope), 
+            #     self.linter.has_higher_scope_var(name, scope), file=sys.stderr)
+            #     print("-" * 20, file=sys.stderr)
+
+            return self.linter.does_has_type(name, scope=scope)
+
+            # return self.linter.does_has_type(name, scope=scope) or \
+            #     self.linter.has_higher_scope_var(name, scope)
+        
         targets = node.targets
         value = node.value
         
@@ -164,8 +185,8 @@ class ExprParser:
                 if name is None:
                     self.linter.add_var(target_str, type_name_val, scope=visit_ctx.scope)
                     
-            if self.linter.does_has_type(target_str, scope=visit_ctx.scope) or \
-                self.linter.does_has_type(name, scope=visit_ctx.scope):
+            if already_declared(target_str, visit_ctx.scope) or \
+                already_declared(name, visit_ctx.scope):
                 self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
             else:
                 self.set_type(target_str, visit_ctx.scope)
@@ -194,19 +215,25 @@ class ExprParser:
                 if self.should_scan_func(arg, visit_ctx):
                     self.visit(arg, visit_ctx)
 
-        func_name: str = node.func.id
-        func: Function = self.linter.funcs[func_name]
-        if func.return_pytype is not None:
-            return func.return_pytype
-
-        # Now we know the type of parameters, put this in the info
-        func_ast_obj = func._ast_object
         repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
             parser_ctx=visit_ctx,
             expr_node=node
         )
+        func_name: str = node.func.id
+        if func_name not in self.linter.funcs:
+            # Assuming this is a builtin function
+            new_ctx = repr_ctx.copy()
+            new_ctx.parser_ctx.scope = ["global"]
+            return self.repr.get_type_from_pyfunction(node, new_ctx)
+            
+        func: Function = self.linter.funcs[func_name]
+        if func.return_pytype is not None:
+            return func.return_pytype
+
+        # Now we know the type of parameters, put this in the info
+        func_ast_obj = func._ast_object
         # TODO : Support nested scope
         # Now it assumes all functions are global
         for func_param, arg in zip(func_ast_obj.args.args, node.args):
@@ -266,7 +293,7 @@ class ExprParser:
                     continue
 
                 if isinstance(return_val, ast.Call):
-                    name_func = return_val.name
+                    name_func = return_val.func.id
                     # Skip some type of recursion
                     if name_func in walk_already:
                         continue
