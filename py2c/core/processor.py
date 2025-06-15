@@ -197,6 +197,10 @@ class ExprParser:
         return "None"
 
     def visit_AugAssign(self, node: ast.AugAssign, visit_ctx: VisitContext):
+        if visit_ctx.is_scanning:
+            if self.should_scan_func(node.value, visit_ctx):
+                self.visit(node.value, visit_ctx)
+
         # self.print_line("AUG ASSIGN: ", current_indent, end="")
         repr_ctx = ReprVisitContext(
             processor=self,
@@ -376,6 +380,10 @@ class ExprParser:
         self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
 
     def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type):
+        if visit_ctx.is_scanning:
+            if self.should_scan_func(node, visit_ctx):
+                self.visit(node, visit_ctx)
+
         repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
@@ -431,6 +439,10 @@ class ExprParser:
         self.print_line("}", visit_ctx.current_indent)
 
     def visit_If(self, node: ast.If, visit_ctx: VisitContext):
+        if visit_ctx.is_scanning:
+            if self.should_scan_func(node.test, visit_ctx):
+                self.visit(node.test, visit_ctx)
+                
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx = visit_ctx,
@@ -462,6 +474,10 @@ class ExprParser:
         # self.print_line("END", current_indent)
 
     def visit_Return(self, node: ast.Return, visit_ctx: VisitContext):
+        if visit_ctx.is_scanning:
+            if self.should_scan_func(node.value, visit_ctx):
+                self.visit(node.value, visit_ctx)
+                
         if node.value is None:
             self.print_line("return;", visit_ctx.current_indent)
             return
@@ -473,6 +489,10 @@ class ExprParser:
         self.print_line(f"return {self.repr.visit(node.value, repr_ctx)};", visit_ctx.current_indent)
 
     def visit_While(self, node: ast.While, visit_ctx: VisitContext):
+        if visit_ctx.is_scanning:
+            if self.should_scan_func(node.test, visit_ctx):
+                self.visit(node.test, visit_ctx)
+
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx = visit_ctx,
