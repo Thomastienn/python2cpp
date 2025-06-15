@@ -37,7 +37,7 @@ def parse(tree):
     # Like pre-processing
     for i, exp in enumerate(normal_exps):
         print(f"SCAN: {i}", file=printer.debug)
-        printer.visit(exp, VisitContext(allow_print=False))
+        printer.visit(exp, VisitContext(allow_print=False, is_scanning=True))
 
     print(printer.linter.funcs, file=sys.stderr)
     # JUST A HEADER LIB
@@ -51,7 +51,7 @@ def parse(tree):
     print("\n// Your functions are here")
     # ALL DECLARED FUNCTIONS
     for func in funcs.values():
-        if func.user_func:
+        if func.user_func and func.return_pytype is not None:
             printer.visit(func._ast_object, VisitContext(
                 scope=["global", func.name], allow_print=True
             ))

@@ -21,6 +21,7 @@ class Variable(BaseModel):
 class VisitContext(BaseModel):
     current_indent: int = 0
     allow_print: bool | None = None
+    is_scanning: bool = False
     scope: list[str] = ["global"] # Nested scope
     
 class ReprVisitContext(BaseModel):

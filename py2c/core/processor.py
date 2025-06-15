@@ -1,12 +1,28 @@
 import os
 import sys
 import ast
+import pprint
+import builtins
 from copy import deepcopy
+
 from py2c.utils.linter import Linter
 from py2c.utils import constants
 from py2c.core.visitor import ReprVisitor
 from py2c.core.structure import VisitContext, ReprVisitContext, Function
 
+
+# _original_print = builtins.print
+# def print(*args, **kwargs):
+#     # Extract file= if present, to pass as stream to pprint
+#     stream = kwargs.pop('file', None)
+#     # If exactly one argument, use pprint.pprint on it
+#     if len(args) == 1:
+#         pprint.pprint(args[0], stream=stream)
+#     else:
+#         # Multiple args: behave like regular print, including file=...
+#         if stream is not None:
+#             kwargs['file'] = stream
+#         _original_print(*args, **kwargs)
 
 class ExprParser:
     def __init__(self, funcs: dict[str, Function]):
@@ -15,6 +31,12 @@ class ExprParser:
         self.allow_print = True
         self.debug = open((os.devnull if constants.PROD else "debug.out"), "w")
         self.num_for = 0
+
+    def should_scan_func(self, node: ast.AST, visit_ctx: VisitContext):
+        return isinstance(node, ast.Call) and \
+            node.func.id in self.linter.funcs and \
+            (self.linter.funcs[node.func.id].return_pytype is None) and \
+            node.func.id != visit_ctx.scope[-1]
 
     def print_line(self, line: str, current_indent: int, end="\n"):
         if self.allow_print:
@@ -49,7 +71,8 @@ class ExprParser:
         result = visitor(node, VisitContext(
             current_indent=visit_ctx.current_indent,
             allow_print=allow_print,
-            scope=visit_ctx.scope
+            scope=visit_ctx.scope,
+            is_scanning=visit_ctx.is_scanning,
         ))
         self.allow_print = original
         return result
@@ -62,6 +85,20 @@ class ExprParser:
         func_name = func_node.func.id
         if func_name in self.linter.funcs:
             return self.visit(func_node, visit_ctx)
+
+        get_type_ctx = ReprVisitContext(
+            processor=self,
+            return_type=True,
+            parser_ctx=visit_ctx,
+            expr_node=func_node
+        )
+        if func_name == "list":
+            types_inside = []
+            for arg in func_node.args:
+                type_ = self.repr.visit(arg, get_type_ctx)
+                types_inside.append(type_)
+
+            return ["list"] + types_inside
 
         return self.linter.get_type_from_pyfunction(func_node)
 
@@ -77,7 +114,6 @@ class ExprParser:
         targets = node.targets
         value = node.value
         
-
         if isinstance(value, ast.Call):
             type_name_val = self.find_type_func(value, visit_ctx)
         else:
@@ -153,6 +189,11 @@ class ExprParser:
         return "None"
 
     def visit_Call(self, node: ast.Call, visit_ctx: VisitContext):
+        if visit_ctx.is_scanning:
+            for arg in node.args:
+                if self.should_scan_func(arg, visit_ctx):
+                    self.visit(arg, visit_ctx)
+
         func_name: str = node.func.id
         func: Function = self.linter.funcs[func_name]
         if func.return_pytype is not None:
@@ -182,7 +223,8 @@ class ExprParser:
         new_ctx = VisitContext(
             current_indent=visit_ctx.current_indent,
             allow_print = False,
-            scope=["global", func._ast_object.name]
+            scope=["global", func._ast_object.name],
+            is_scanning=visit_ctx.is_scanning
         )
         return_type = self.visit(func._ast_object, new_ctx)
         func.return_pytype = return_type
@@ -220,6 +262,8 @@ class ExprParser:
             return_node = self.find_first_return(expr)
             if return_node is not None:
                 return_val = return_node.value
+                if return_val is None:
+                    continue
 
                 if isinstance(return_val, ast.Call):
                     name_func = return_val.name
@@ -234,7 +278,8 @@ class ExprParser:
                         new_ctx = VisitContext(
                             current_indent = visit_ctx.current_indent + 1,
                             allow_print = False,
-                            scope = new_scope
+                            scope = new_scope,
+                            is_scanning = visit_ctx.is_scanning
                         )
                         expected_return_type = self.visit(return_val, new_ctx)
                 else:
@@ -251,6 +296,7 @@ class ExprParser:
                 current_indent = visit_ctx.current_indent + 1,
                 allow_print = False,
                 scope = visit_ctx.scope,
+                is_scanning = visit_ctx.is_scanning
             )
             self.visit(expr, new_ctx)
             
@@ -260,10 +306,12 @@ class ExprParser:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
                 scope = visit_ctx.scope,
+                is_scanning = visit_ctx.is_scanning,
             )
             self.visit(expr, new_ctx)
         self.print_line("}", visit_ctx.current_indent)
         
+        self.linter.funcs[node.name].return_pytype = expected_return_type
         return expected_return_type
 
     def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type):
@@ -350,6 +398,7 @@ class ExprParser:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
                 scope = visit_ctx.scope,
+                is_scanning = visit_ctx.is_scanning,
             )
             self.visit(expr, new_ctx)
         self.print_line("}", visit_ctx.current_indent)
@@ -367,6 +416,7 @@ class ExprParser:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
                 scope=visit_ctx.scope,
+                is_scanning=visit_ctx.is_scanning,
             )
             self.visit(expr, new_ctx)
         self.print_line("}", visit_ctx.current_indent)
@@ -378,13 +428,16 @@ class ExprParser:
                 new_ctx = VisitContext(
                     current_indent = visit_ctx.current_indent + 1,
                     scope=visit_ctx.scope,
+                    is_scanning=visit_ctx.is_scanning,
                 )
                 self.visit(expr, new_ctx)
             self.print_line("}", visit_ctx.current_indent)
         # self.print_line("END", current_indent)
 
     def visit_Return(self, node: ast.Return, visit_ctx: VisitContext):
-        # self.print_line("RETURN: ", current_indent, end="")
+        if node.value is None:
+            self.print_line("return;", visit_ctx.current_indent)
+            return
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx=visit_ctx,
@@ -404,17 +457,19 @@ class ExprParser:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
                 scope=visit_ctx.scope,
+                is_scanning=visit_ctx.is_scanning,
             )
             self.visit(expr, new_ctx)
         self.print_line("}", visit_ctx.current_indent)
 
     def visit_Expr(self, node: ast.Expr, visit_ctx: VisitContext):
-        # TODO: Add is_scanning to visit_ctx to exec this
-        if isinstance(node.value, ast.Call):
+        if visit_ctx.is_scanning:
+            if self.should_scan_func(node.value, visit_ctx):
+                self.visit(node.value, visit_ctx)
             for arg in node.value.args:
-                if isinstance(arg, ast.Call) and arg.func.id in self.linter.funcs:
+                if self.should_scan_func(arg, visit_ctx):
                     self.visit(arg, visit_ctx)
-                    
+                
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx=visit_ctx,

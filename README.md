@@ -6,6 +6,7 @@
 - It has not yet support for libraries (only vanilla python)
 - It cannot copy comments to cpp yet (low priority)
 - It can still produce syntax error (use with caution)
+- It will not produce unused functions (since it has no context)
 
 ### DEMO
 

@@ -171,9 +171,14 @@ class ReprVisitor():
             
     def visit_Call(self, node: ast.Call, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
-            if node.func.id in self.linter.funcs:
-                return self.linter.funcs[node.func.id].return_pytype
-            return self.linter.get_type_from_pyfunction(node)
+            if isinstance(node.func, ast.Name):
+                if node.func.id in self.linter.funcs:
+                    return self.linter.funcs[node.func.id].return_pytype
+                return self.linter.get_type_from_pyfunction(node)
+            if isinstance(node.func, ast.Attribute):
+                return self.linter.get_attr_type("Unknown", node.func.attr)
+                
+            raise NotImplementedError(f"Call {node.func} not implemented")
 
         res = self.handle_pyfunc(node, repr_ctx)
         if res is not None:

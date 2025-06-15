@@ -17,9 +17,12 @@ class Linter:
         "dict": "map",
         "set": "set",
         "tuple": "tuple",
-        "pair": "pair", # This doesnt exist but i want to make sure everything doesn't break.
-        "auto": "auto", # This one too
         "None": "void",
+    }
+    CAST_TYPES = {
+        "pair": "pair", 
+        "auto": "auto",
+        "Unknown": "Unknown",
     }
     def __init__(self, funcs: dict[str, Function]):
         self.typed_vars = {
@@ -144,6 +147,8 @@ class Linter:
             if container_type in ["pair", "tuple"]:
                 return f"{container_type}<{', '.join(self.python_to_cpp_type(t) for t in t_name[1:])}>"
             raise NotImplementedError(f"{container_type} not implemented")
+        if t_name in Linter.CAST_TYPES:
+            return Linter.CAST_TYPES[t_name]
         if t_name not in Linter.TYPES:
             raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
         return Linter.TYPES[t_name]
@@ -160,13 +165,17 @@ class Linter:
             return pytype_from
         if attr == "pop":
             return pytype_from[1:]
+        if attr == "bit_length":
+            return "int"
     
         raise NotImplementedError(f"Attribute {attr} not implemented")
     
     def get_binop_type(self, pytype_left, pytype_right, op: str):
-        if pytype_left not in Linter.TYPES:
+        if not isinstance(pytype_left, list) and \
+            pytype_left not in Linter.TYPES:
             pytype_left = self.get_var_type(pytype_left)
-        if pytype_right not in Linter.TYPES:
+        if not isinstance(pytype_left, list) and \
+            pytype_right not in Linter.TYPES:
             pytype_right = self.get_var_type(pytype_right)
         
         case = (pytype_left, pytype_right)
