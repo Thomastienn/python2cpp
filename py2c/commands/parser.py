@@ -1,10 +1,12 @@
 import sys
 import ast
+
 from py2c.core.structure import Function, VisitContext, ReprVisitContext
 from py2c.core.processor import ExprParser
 from py2c.utils.constants import HEADER, TAB
 from py2c.utils.template import CPPTemplate, CPPTemplateReturnType
 from py2c.utils.utils import Utils
+from py2c.utils.scope_handler import ScopeHandler
 
 ReprVisitContext.model_rebuild()
 def parse(tree):
@@ -37,7 +39,7 @@ def parse(tree):
     # Like pre-processing
     for i, exp in enumerate(normal_exps):
         print(f"SCAN: {i}", file=printer.debug)
-        printer.visit(exp, VisitContext(allow_print=False, is_scanning=True))
+        printer.visit(exp, VisitContext(allow_print=False, is_scanning=True, scope=["global"]))
 
     # print(printer.linter.funcs, file=sys.stderr)
     # JUST A HEADER LIB
@@ -53,7 +55,7 @@ def parse(tree):
     for func in funcs.values():
         if func.user_func and func.return_pytype is not None:
             printer.visit(func._ast_object, VisitContext(
-                scope=["global", func.name], allow_print=True
+                scope=["global"], allow_print=True
             ))
     print()
 
@@ -61,7 +63,7 @@ def parse(tree):
     print("int main() {")
     for i,exp in enumerate(normal_exps):
         print(f"MAIN: {i}", file=printer.debug)
-        printer.visit(exp, VisitContext(allow_print=True, current_indent=1))
+        printer.visit(exp, VisitContext(allow_print=True, current_indent=1, scope=["global"]))
     print(TAB + "return 0;")
     print("}")
 

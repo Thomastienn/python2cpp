@@ -26,7 +26,12 @@ def run():
     sys.stdout = open(f'{output_file}', 'w')
     sys.stderr = open(f'{input_file_no_ext}.err', 'w')
     
-    parse(tree)
+    try:
+        parse(tree)
+    except Exception as e:
+        sys.__stdout__. write(f"Error! Check the logs\n")
+        raise e
+    sys.__stdout__.write("\n// All done! Check outputs\n")
 
 if __name__ == "__main__":
     run()

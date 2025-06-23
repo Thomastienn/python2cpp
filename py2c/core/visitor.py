@@ -10,6 +10,11 @@ from py2c.core.structure import ReprVisitContext, VisitContext
 
 
 class ReprVisitor():
+    MAP_VALUE = {
+        "True": "true",
+        "False": "false",
+        "None": "nullptr",
+    }
     def __init__(self, linter: Linter):
         self.linter = linter
 
@@ -49,11 +54,22 @@ class ReprVisitor():
     def visit_Constant(self, node: ast.Constant, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
             return type(node.value).__name__
-        return repr(node.value).replace("\'", "\"")
+        node_repr = repr(node.value)
+        if node_repr in self.MAP_VALUE:
+            return self.MAP_VALUE[node_repr]
+        return node_repr.replace("\'", "\"")
 
     def visit_Name(self, node: ast.Name, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
-            return self.linter.get_var_type(node.id, repr_ctx.parser_ctx.scope)
+            try:
+                return self.linter.get_var_type(node.id, repr_ctx.parser_ctx.scope)
+            except KeyError:
+                # During scanning phase, variables might not be defined yet
+                # Return a placeholder type that can be resolved later
+                if repr_ctx.parser_ctx.is_scanning:
+                    return "Unknown"
+                else:
+                    raise
         return node.id
 
     def visit_Tuple(self, node: ast.Tuple, repr_ctx: ReprVisitContext):
@@ -64,9 +80,8 @@ class ReprVisitor():
                 parser_ctx=repr_ctx.parser_ctx,
                 expr_node = repr_ctx.expr_node
             )
-            if len(node.elts) == 2:
-                return ["pair", self.visit(node.elts[0], new_ctx), self.visit(node.elts[1], new_ctx)]
-            type_ = ["tuple"]
+            # Use list instead of pair for all tuples
+            type_ = ["list"]
             for el in node.elts:
                 type_.append(self.visit(el, new_ctx))
             return type_
@@ -189,7 +204,9 @@ class ReprVisitor():
             type_other = self.visit(node.args[0], get_type_ctx)
             if type_other == "str" and func_name == "int":
                 return f"stoi({self.visit(node.args[0], new_ctx)})"
-            return f"({func_name}) ({self.visit(node.args[0], new_ctx)})"
+            if type_other == "int" and func_name == "str":
+                return f"to_string({self.visit(node.args[0], new_ctx)})"
+            return f"({Linter.TYPES[func_name]}) ({self.visit(node.args[0], new_ctx)})"
         return None
             
     # TODO: This shouldn't be here, we will move it back to processor.py
@@ -383,8 +400,9 @@ class ReprVisitor():
                 parser_ctx=repr_ctx.parser_ctx,
                 expr_node = repr_ctx.expr_node
             )
-            if len(node.elts) == 2:
-                return ["pair", self.visit(node.elts[0], new_ctx), self.visit(node.elts[1], new_ctx)]
+            element_type = self.visit(node.elts[0], new_ctx)
+            if isinstance(element_type, list):
+                return ["list"] + element_type
             return ["list", self.visit(node.elts[0], new_ctx)]
 
         new_ctx = ReprVisitContext(

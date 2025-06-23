@@ -23,6 +23,14 @@ class VisitContext(BaseModel):
     allow_print: bool | None = None
     is_scanning: bool = False
     scope: list[str] = ["global"] # Nested scope
+
+    def copy(self) -> VisitContext:
+        return VisitContext(
+            current_indent=self.current_indent,
+            allow_print=self.allow_print,
+            is_scanning=self.is_scanning,
+            scope=self.scope.copy()
+        )
     
 class ReprVisitContext(BaseModel):
     processor: "ExprParser"
@@ -33,3 +41,11 @@ class ReprVisitContext(BaseModel):
     model_config = {
         "arbitrary_types_allowed": True
     }
+
+    def copy(self) -> ReprVisitContext:
+        return ReprVisitContext(
+            processor=self.processor,
+            return_type=self.return_type,
+            parser_ctx=self.parser_ctx.copy(),
+            expr_node=self.expr_node
+        )

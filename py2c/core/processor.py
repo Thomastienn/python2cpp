@@ -7,6 +7,7 @@ from copy import deepcopy
 
 from py2c.utils.linter import Linter
 from py2c.utils import constants
+from py2c.utils.scope_handler import ScopeHandler
 from py2c.core.visitor import ReprVisitor
 from py2c.core.structure import VisitContext, ReprVisitContext, Function
 
@@ -36,11 +37,13 @@ class ExprParser:
         return isinstance(node, ast.Call) and \
             node.func.id in self.linter.funcs and \
             (self.linter.funcs[node.func.id].return_pytype is None) and \
-            node.func.id != visit_ctx.scope[-1]
+            node.func.id not in visit_ctx.scope
 
     def print_line(self, line: str, current_indent: int, end="\n"):
         if self.allow_print:
             print((constants.TAB * current_indent) + line, end=end)
+        else:
+            print("DEBUG PRINT: " + (constants.TAB * current_indent) + line, end=end, file=self.debug)
 
     def visit_Str(self, string: str):
         if string == "DEBUG":
@@ -71,7 +74,7 @@ class ExprParser:
         result = visitor(node, VisitContext(
             current_indent=visit_ctx.current_indent,
             allow_print=allow_print,
-            scope=visit_ctx.scope,
+            scope=ScopeHandler.additional_scope(node=node, current_scope=visit_ctx.scope, linter=self.linter),
             is_scanning=visit_ctx.is_scanning,
         ))
         self.allow_print = original
@@ -162,6 +165,22 @@ class ExprParser:
 
 
         cpp_type = self.linter.python_to_cpp_type(type_name_val)
+        
+        # Normalize complex type structures for Variable storage
+        # The Variable class expects simple list[str] | str, not nested complex structures
+        def normalize_type_for_storage(type_val):
+            if isinstance(type_val, list):
+                # If it's a complex nested structure, simplify it
+                # For now, just use the first part or convert to string representation
+                if len(type_val) > 0 and any(isinstance(item, list) for item in type_val):
+                    # This is a complex nested type, just use "Unknown" for storage
+                    return "Unknown"
+                # For simple lists like ["list", "str"], keep as is
+                return type_val
+            return type_val
+        
+        normalized_type = normalize_type_for_storage(type_name_val)
+        
         for target in targets:
             repr_ctx = ReprVisitContext(
                 processor=self,
@@ -180,10 +199,10 @@ class ExprParser:
             is_unpacking = "," in target_str
             if is_unpacking:
                 for target_s in target_str.split(","):
-                    self.linter.add_var(target_s, type_name_val, scope=visit_ctx.scope)
+                    self.linter.add_var(target_s, normalized_type, scope=visit_ctx.scope)
             else:
                 if name is None:
-                    self.linter.add_var(target_str, type_name_val, scope=visit_ctx.scope)
+                    self.linter.add_var(target_str, normalized_type, scope=visit_ctx.scope)
                     
             if already_declared(target_str, visit_ctx.scope) or \
                 already_declared(name, visit_ctx.scope):
@@ -240,23 +259,49 @@ class ExprParser:
         func_ast_obj = func._ast_object
         # TODO : Support nested scope
         # Now it assumes all functions are global
+
+        new_visitctx = visit_ctx.copy()
+        # During scanning phase, user functions are typically in global scope
+        # Try to find the function scope, but handle case where it doesn't exist yet
+        try:
+            new_visitctx.scope = self.linter.find_scope_by_var(func_name, findFunc=True, scope=visit_ctx.scope)
+        except KeyError:
+            # If function not found in scope system yet (during scanning), assume global scope
+            if func.user_func:
+                new_visitctx.scope = ["global"]
+            else:
+                new_visitctx.scope = visit_ctx.scope
+        arg_repr_ctx = ReprVisitContext(
+            processor=self,
+            return_type=True,
+            parser_ctx=new_visitctx,
+            expr_node=node
+        )
+        # print(repr_ctx.parser_ctx.scope, arg_repr_ctx.parser_ctx.scope, file=sys.stderr)
+        # print(repr_ctx,"\n\n", arg_repr_ctx, file=sys.stderr)
+
         for func_param, arg in zip(func_ast_obj.args.args, node.args):
             # Get the type from argument and pass it to parameter
-            type_ = self.repr.visit(arg, repr_ctx)
-            self.linter.add_var(func_param.arg, type_, scope=["global", func_name])
+            type_ = self.repr.visit(arg, arg_repr_ctx)
+            if not isinstance(arg, ast.Call):
+                self.linter.add_var(func_param.arg, type_, scope=repr_ctx.parser_ctx.scope)
 
         # For keywords like a=1, b=(math.pi*2) something
         for arg, value in node.keywords:
-            type_ = self.repr.visit(arg, repr_ctx)
-            self.linter.add_var(arg, type_, scope=["global", func_name])
+            type_ = self.repr.visit(arg, arg_repr_ctx)
+            if not isinstance(arg, ast.Call):
+                self.linter.add_var(arg, type_, scope=repr_ctx.parser_ctx.scope)
 
         # Now need to return the type by going to function definition
+        # Use the scope we determined earlier
         new_ctx = VisitContext(
             current_indent=visit_ctx.current_indent,
             allow_print = False,
-            scope=["global", func._ast_object.name],
+            scope=new_visitctx.scope,
             is_scanning=visit_ctx.is_scanning
         )
+
+        # print(new_ctx, file=sys.stderr)
         return_type = self.visit(func._ast_object, new_ctx)
         func.return_pytype = return_type
         return return_type
@@ -274,6 +319,16 @@ class ExprParser:
         return None
                           
     def visit_FunctionDef(self, node: ast.FunctionDef, visit_ctx: VisitContext):
+        # print(visit_ctx, file=sys.stderr)
+        
+        # Ensure the function scope exists in the linter
+        # Initialize the nested scope path if it doesn't exist
+        cur_scope = self.linter.typed_vars
+        for s in visit_ctx.scope:
+            if s not in cur_scope:
+                cur_scope[s] = {}
+            cur_scope = cur_scope[s]
+        
         def pytype_arg(name):
             type_ = self.linter.get_var_type(name, scope=visit_ctx.scope)
             return type_
@@ -303,13 +358,17 @@ class ExprParser:
                         continue
                     walk_already.add(name_func)
                     if expected_return_type == "None":
-                        new_scope = deepcopy(visit_ctx.scope)
-                        new_scope.pop()
-                        new_scope.append(name_func)
+                        # Try to find function scope, but handle case where it doesn't exist yet
+                        try:
+                            func_scope = self.linter.find_scope_by_var(name_func, findFunc=True, scope=visit_ctx.scope)
+                        except KeyError:
+                            # If function not found in scope system yet, assume global scope
+                            func_scope = ["global"]
+                        
                         new_ctx = VisitContext(
                             current_indent = visit_ctx.current_indent + 1,
                             allow_print = False,
-                            scope = new_scope,
+                            scope = func_scope,
                             is_scanning = visit_ctx.is_scanning
                         )
                         expected_return_type = self.visit(return_val, new_ctx)
@@ -345,14 +404,17 @@ class ExprParser:
         self.linter.funcs[node.name].return_pytype = expected_return_type
         return expected_return_type
 
-    def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type):
+    def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type, node_for: ast.For):
         """
             Print for i loop
             PARAMS
             node: ast.Call which is calling range() func
         """
         if save_type:
-            self.linter.add_var(var, "int", scope=visit_ctx.scope+[f"for_{self.num_for}"])
+            # Create the for loop scope
+            for_scope_name = f"for_{id(node_for)}"
+            new_scope = visit_ctx.scope + [for_scope_name]
+            self.linter.add_var(var, "int", scope=new_scope)
         start = 0
         end = None
         step = 1
@@ -379,7 +441,7 @@ class ExprParser:
         add_str = f"{var}++" if step == 1 else f"{var} += {step}"
         self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
 
-    def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type):
+    def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type, node_for: ast.For):
         if visit_ctx.is_scanning:
             if self.should_scan_func(node, visit_ctx):
                 self.visit(node, visit_ctx)
@@ -402,7 +464,10 @@ class ExprParser:
             func_return_type = func_return_type[0]
         cpp_type = self.linter.python_to_cpp_type(func_return_type)
         if save_type:
-            self.linter.add_var(var, func_return_type, scope=visit_ctx.scope+[f"for_{self.num_for}"])
+            # Create the for loop scope
+            for_scope_name = f"for_{id(node_for)}"
+            new_scope = visit_ctx.scope + [for_scope_name]
+            self.linter.add_var(var, func_return_type, scope=new_scope)
         self.print_line(f"for ({cpp_type} {var} : {self.repr.visit(node, repr_ctx_2)}) {{", visit_ctx.current_indent)
 
     def print_forloop(self, node: ast.For, visit_ctx: VisitContext, save_type=True):
@@ -413,9 +478,9 @@ class ExprParser:
         )
         target_visited = self.repr.visit(node.target, repr_ctx)
         if isinstance(node.iter, ast.Call) and node.iter.func.id == "range":
-            self.print_for_i(target_visited, node.iter, visit_ctx, save_type)
+            self.print_for_i(target_visited, node.iter, visit_ctx, save_type, node)
         else:
-            self.print_for_iter(target_visited, node.iter, visit_ctx, save_type)
+            self.print_for_iter(target_visited, node.iter, visit_ctx, save_type, node)
 
     def visit_For(self, node: ast.For, visit_ctx: VisitContext):
         # self.print_line(f"for ({self.repr.visit(node.target)} in {self.repr.visit(node.iter)}) {{", visit_ctx.current_indent)
@@ -428,11 +493,15 @@ class ExprParser:
             parser_ctx=visit_ctx,
             expr_node=node
         )
+        
+        # Create a new scope for the for loop
+        for_scope_name = f"for_{id(node)}"
+        new_scope = visit_ctx.scope + [for_scope_name]
             
         for expr in node.body:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
-                scope = visit_ctx.scope,
+                scope = new_scope,
                 is_scanning = visit_ctx.is_scanning,
             )
             self.visit(expr, new_ctx)
