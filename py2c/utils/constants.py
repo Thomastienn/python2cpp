@@ -1,4 +1,4 @@
-PROD = False
+PROD = True
 TAB = " " * 4
 HEADER = \
 """#include <bits/stdc++.h>

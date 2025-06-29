@@ -6,7 +6,7 @@
 - It has not yet support for libraries (only vanilla python)
 - It cannot copy comments to cpp yet (low priority)
 - It can still produce syntax error (use with caution)
-- It will not produce unused functions (since it has no context)
+- It will not produce unused functions ()
 
 ### DEMO
 
@@ -64,7 +64,7 @@ print(ans)
 using namespace std;
 
 // Just my templates to replace python functions
-vector<string> csplit(const string& s, const string& delim) {
+vector<string> csplit(const string& s, const string& delim = " ") {
     vector<string> result;
     size_t start = 0, end;
 
@@ -76,15 +76,9 @@ vector<string> csplit(const string& s, const string& delim) {
     return result;
 }
 
-string cinput() {
-    string s;
-    getline(cin, s);
-    return s;
-}
-
-template<typename T>
-T fastpow(T a, T b) {
-    T res = 1;
+template <typename T>
+long long fastpow(T a, T b) {
+    long long res = 1;
     while (b > 0) {
         if (b & 1) {
             res *= a;
@@ -93,6 +87,12 @@ T fastpow(T a, T b) {
         b >>= 1;
     }
     return res;
+}
+
+string cinput() {
+    string s;
+    getline(cin, s);
+    return s;
 }
 
 // Your functions are here
@@ -151,12 +151,12 @@ int main() {
     int mod = (fastpow(10, 9) + 7);
     auto [n,m,t] = [&] {
         vector<int>temp;
-        auto arg2 = csplit(cinput());
-        for (int i = 0; i < arg2.size()){
-            temp.push_back((int)arg2[i]);
+        vector<string> arg2 = csplit(cinput());
+        for (int i = 0; i < arg2.size(); i++){
+            temp.push_back(stoi(arg2[i]));
         }
-        return temp;
-    };
+        return make_tuple(temp[0], temp[1], temp[2]);
+    }();
     vector<vector<int>> A = [&] {
         vector<vector<int>> parent;
         for (int j = 0; j < (n + 1); j++) {
@@ -175,7 +175,7 @@ int main() {
     vector<int> types = [&] {
         vector<int> parent;
         for (int _ = 0; _ < n; _++) {
-            int temp = (int) (cinput());
+            int temp = stoi(cinput());
             parent.push_back(temp);
         }
         return parent;
@@ -183,17 +183,17 @@ int main() {
     for (int i = 0; i < m; i++) {
         auto [u,v] = [&] {
             vector<int>temp;
-            auto arg2 = csplit(cinput());
-            for (int i = 0; i < arg2.size()){
-                temp.push_back((int)arg2[i]);
+            vector<string> arg2 = csplit(cinput());
+            for (int i = 0; i < arg2.size(); i++){
+                temp.push_back(stoi(arg2[i]));
             }
-            return temp;
-        };
+            return make_tuple(temp[0], temp[1]);
+        }();
         if (types[v] == 1) {
             A[u][A[u].size() - 1] += 1;
         }
         else {
-            A[u[v] += 1;
+            A[u][v] += 1;
         }
         if (types[u] == 1) {
             A[v][A[v].size() - 1] += 1;

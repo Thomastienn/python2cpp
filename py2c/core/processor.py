@@ -190,10 +190,14 @@ class ExprParser:
             target_str = self.repr.visit(target, repr_ctx)
 
             name = None
+            original_target = target
             while isinstance(target, ast.Subscript):
                 target = target.value
-                if isinstance(target, ast.Name):
-                    name = target.id
+            if isinstance(target, ast.Name):
+                name = target.id
+            # For simple variable assignments (not subscripts), set name from target_str
+            elif isinstance(original_target, ast.Name):
+                name = original_target.id
                     
             # It's a tuple of variables
             is_unpacking = "," in target_str
@@ -201,10 +205,13 @@ class ExprParser:
                 for target_s in target_str.split(","):
                     self.linter.add_var(target_s, normalized_type, scope=visit_ctx.scope)
             else:
-                if name is None:
-                    self.linter.add_var(target_str, normalized_type, scope=visit_ctx.scope)
+                # Always add the variable to the linter for simple assignments
+                self.linter.add_var(target_str, normalized_type, scope=visit_ctx.scope)
                     
-            if already_declared(target_str, visit_ctx.scope) or \
+            if isinstance(original_target, ast.Subscript):
+                # For subscript assignments, just assign without declaring
+                self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
+            elif already_declared(target_str, visit_ctx.scope) or \
                 already_declared(name, visit_ctx.scope):
                 self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
             else:

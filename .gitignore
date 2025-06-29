@@ -3,5 +3,5 @@ __pycache__
 *.out
 *.cpp
 test.py
-python*.py
 venv/
+out/

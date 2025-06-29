@@ -326,7 +326,7 @@ class ReprVisitor():
             full_new_scope = repr_ctx.parser_ctx.scope + [new_scope]
 
             # WARNING: This is a hack, fix in the future
-            self.linter.add_var("temp", "This doesn't matter", scope=full_new_scope)
+            self.linter.add_var("temp", "Unknown", scope=full_new_scope)
             repr_ctx.processor.visit(ast.Assign(
                 targets=[ast.Name(id="temp", ctx=ast.Store())],
                 value=node.elt
@@ -462,3 +462,22 @@ class ReprVisitor():
     def generic_visit(self, node: ast.AST, repr_ctx: ReprVisitContext):
         raise NotImplementedError(
             f"Visit method not implemented for {type(node).__name__}")
+
+    def visit_Dict(self, node: ast.Dict, repr_ctx: ReprVisitContext):
+        if repr_ctx.return_type:
+            new_ctx = ReprVisitContext(
+                processor=repr_ctx.processor,
+                return_type=True,
+                parser_ctx=repr_ctx.parser_ctx,
+                expr_node = repr_ctx.expr_node
+            )
+            key_type = self.visit(node.keys[0], new_ctx)
+            value_type = self.visit(node.values[0], new_ctx)
+            return ["dict", key_type, value_type]
+        
+        new_ctx = ReprVisitContext(
+            processor=repr_ctx.processor,
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
+        )
+        return f"{{{', '.join(f'{self.visit(k, new_ctx)}: {self.visit(v, new_ctx)}' for k, v in zip(node.keys, node.values))}}}"

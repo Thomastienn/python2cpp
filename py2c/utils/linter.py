@@ -134,6 +134,12 @@ class Linter:
             if name in s:
                 var: Variable = s[name]
                 return var.pytype
+        
+        # If not found in the direct scope hierarchy, also check global scope
+        if scope != ["global"] and "global" in self.typed_vars:
+            global_scope = self.typed_vars["global"]
+            if name in global_scope and isinstance(global_scope[name], Variable):
+                return global_scope[name].pytype
                 
         # If variable not found in provided scope, try to search in nested scopes
         # This handles cases where variables are defined in for loops or other nested constructs
