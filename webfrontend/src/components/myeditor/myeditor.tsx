@@ -8,12 +8,13 @@ import 'prismjs/components/prism-cpp';
 import 'prismjs/themes/prism-tomorrow.css';
 
 export interface MyEditorProps {
-    defaultValue?: string;
+    code?: string;
+    setCode: (code: string) => void;
     language: 'python' | 'cpp';
 }
 
-export const MyEditor = ({ defaultValue, language }: MyEditorProps) => {
-    const [code, setCode] = useState<string>(defaultValue || '');
+export const MyEditor = ({ code, setCode, language }: MyEditorProps) => {
+    code = code || '';
     let mlanguages = null;
     if (language === 'python') {
         mlanguages = Prism.languages.python;
