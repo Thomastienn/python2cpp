@@ -7,6 +7,7 @@ from py2c.utils.utils import Utils
 from py2c.utils.constants import TAB
 from py2c.utils.template import CPPTemplate
 from py2c.core.structure import ReprVisitContext, VisitContext
+from py2c.utils.logger import setup_logger
 
 
 class ReprVisitor():
@@ -17,6 +18,7 @@ class ReprVisitor():
     }
     def __init__(self, linter: Linter):
         self.linter = linter
+        self.logger = setup_logger("py2cpp.visitor")
 
     def get_type_from_pyfunction(self, func_node: ast.Call, repr_ctx: ReprVisitContext) -> str:
         """
@@ -219,7 +221,8 @@ class ReprVisitor():
             if isinstance(node.func, ast.Attribute):
                 return self.linter.get_attr_type("Unknown", node.func.attr)
                 
-            raise NotImplementedError(f"Call {node.func} not implemented")
+                self.logger.error("Call %s not implemented", node.func)
+                raise NotImplementedError(f"Call {node.func} not implemented")
 
         res = self.handle_pyfunc(node, repr_ctx)
         if res is not None:
@@ -249,6 +252,7 @@ class ReprVisitor():
             Utils.template_uses.add(func_name)
             return f"{func_name.lower()}({node_name})"
 
+        self.logger.error("Attribute %s not implemented for %s", attr_name, node_name)
         raise NotImplementedError
 
     def visit_Attribute(self, node: ast.Attribute, repr_ctx: ReprVisitContext):
@@ -460,6 +464,7 @@ class ReprVisitor():
         return mp.get(type(op), f"<{type(op).__name__}>")
 
     def generic_visit(self, node: ast.AST, repr_ctx: ReprVisitContext):
+        self.logger.error("Visit method not implemented for %s", type(node).__name__)
         raise NotImplementedError(
             f"Visit method not implemented for {type(node).__name__}")
 

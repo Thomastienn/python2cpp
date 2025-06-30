@@ -7,9 +7,11 @@ from py2c.utils.constants import HEADER, TAB
 from py2c.utils.template import CPPTemplate, CPPTemplateReturnType
 from py2c.utils.utils import Utils
 from py2c.utils.scope_handler import ScopeHandler
+from py2c.utils.logger import setup_logger
 
 ReprVisitContext.model_rebuild()
 def parse(tree):
+    logger = setup_logger("py2cpp.parser")
     funcs = {}
     normal_exps = []
     printer = ExprParser(funcs)
@@ -38,7 +40,7 @@ def parse(tree):
     # Process the global scope first to know the type of arguments of functions and each type of variables
     # Like pre-processing
     for i, exp in enumerate(normal_exps):
-        print(f"SCAN: {i}", file=printer.debug)
+        logger.debug("SCAN: %d", i)
         printer.visit(exp, VisitContext(allow_print=False, is_scanning=True, scope=["global"]))
 
     # print(printer.linter.funcs, file=sys.stderr)
@@ -62,7 +64,7 @@ def parse(tree):
     # MAIN FUNCTION
     print("int main() {")
     for i,exp in enumerate(normal_exps):
-        print(f"MAIN: {i}", file=printer.debug)
+        logger.debug("MAIN: %d", i)
         printer.visit(exp, VisitContext(allow_print=True, current_indent=1, scope=["global"]))
     print(TAB + "return 0;")
     print("}")
@@ -71,4 +73,3 @@ def parse(tree):
     # print(printer.linter.funcs, file=sys.stderr)
 
     printer.visit("DEBUG", VisitContext(allow_print=False))
-    printer.debug.close()

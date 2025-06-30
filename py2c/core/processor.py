@@ -10,6 +10,7 @@ from py2c.utils import constants
 from py2c.utils.scope_handler import ScopeHandler
 from py2c.core.visitor import ReprVisitor
 from py2c.core.structure import VisitContext, ReprVisitContext, Function
+from py2c.utils.logger import setup_logger
 
 
 # _original_print = builtins.print
@@ -30,8 +31,9 @@ class ExprParser:
         self.linter = Linter(funcs)
         self.repr = ReprVisitor(self.linter)
         self.allow_print = True
-        self.debug = open((os.devnull if constants.PROD else "debug.out"), "w")
+        # Debug output now handled by logging
         self.num_for = 0
+        self.logger = setup_logger("py2cpp.processor")
 
     def should_scan_func(self, node: ast.AST, visit_ctx: VisitContext):
         return isinstance(node, ast.Call) and \
@@ -43,11 +45,11 @@ class ExprParser:
         if self.allow_print:
             print((constants.TAB * current_indent) + line, end=end)
         else:
-            print("DEBUG PRINT: " + (constants.TAB * current_indent) + line, end=end, file=self.debug)
+            self.logger.debug("%s%s", constants.TAB * current_indent, line)
 
     def visit_Str(self, string: str):
         if string == "DEBUG":
-            print(string, file=self.debug)
+            self.logger.debug(string)
             return
         raise RuntimeError("You are not suppose to end up here")
         
@@ -62,14 +64,12 @@ class ExprParser:
         original = self.allow_print
         self.allow_print = allow_print
         
-        # DEBUG STUFF
-        print(str(self.linter.has_typed).replace('\'', '\"'), file=self.debug)
-        print("-" * 5, file=self.debug)
-        print(str(self.linter.typed_vars).replace('\'', '\"'), file=self.debug)
-        print(visit_ctx, file=self.debug)
-        print("VISITING: ", node, file=self.debug)
-        print(self.linter.funcs, file=self.debug)
-        print("-" * 20, file=self.debug)
+        # Debug logging
+        self.logger.debug("has_typed: %s", str(self.linter.has_typed).replace('\'', '\"'))
+        self.logger.debug("typed_vars: %s", str(self.linter.typed_vars).replace('\'', '\"'))
+        self.logger.debug("visit_ctx: %s", visit_ctx)
+        self.logger.debug("visiting: %s", node)
+        self.logger.debug("funcs: %s", self.linter.funcs)
         
         result = visitor(node, VisitContext(
             current_indent=visit_ctx.current_indent,
@@ -81,7 +81,7 @@ class ExprParser:
         return result
 
     def generic_visit(self, node, visit_ctx: VisitContext):
-        print("NOT IMPLEMENTED: ",node, file=sys.stderr)
+        self.logger.error("NOT IMPLEMENTED: %s", node)
         return
 
     def find_type_func(self, func_node, visit_ctx: VisitContext):
@@ -124,16 +124,8 @@ class ExprParser:
             if name is None:
                 return False
 
-            # if name == "tree":
-            #     print(visit_ctx.scope, file=sys.stderr)
-            #     print(self.linter.does_has_type(name, scope=scope), 
-            #     self.linter.has_higher_scope_var(name, scope), file=sys.stderr)
-            #     print("-" * 20, file=sys.stderr)
-
+            # Check if variable has been actually declared/printed in current context or parent scopes
             return self.linter.does_has_type(name, scope=scope)
-
-            # return self.linter.does_has_type(name, scope=scope) or \
-            #     self.linter.has_higher_scope_var(name, scope)
         
         targets = node.targets
         value = node.value
@@ -201,22 +193,34 @@ class ExprParser:
                     
             # It's a tuple of variables
             is_unpacking = "," in target_str
-            if is_unpacking:
-                for target_s in target_str.split(","):
-                    self.linter.add_var(target_s, normalized_type, scope=visit_ctx.scope)
-            else:
-                # Always add the variable to the linter for simple assignments
-                self.linter.add_var(target_str, normalized_type, scope=visit_ctx.scope)
-                    
+            
             if isinstance(original_target, ast.Subscript):
                 # For subscript assignments, just assign without declaring
                 self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
+            elif is_unpacking:
+                # Check if all variables in the tuple are already declared
+                target_vars = [var.strip() for var in target_str.split(",")]
+                all_declared = all(already_declared(var, visit_ctx.scope) for var in target_vars)
+                
+                
+                if all_declared:
+                    # All variables are already declared, use tie for assignment
+                    self.print_line(f"tie({target_str}) = {value_str};", visit_ctx.current_indent)
+                else:
+                    # At least one variable is new, declare with auto
+                    for target_s in target_vars:
+                        if not already_declared(target_s, visit_ctx.scope):
+                            self.linter.add_var(target_s, normalized_type, scope=visit_ctx.scope)
+                            self.set_type(target_s, visit_ctx.scope)
+                    self.print_line(f"auto [{target_str}] = {value_str};", visit_ctx.current_indent)
             elif already_declared(target_str, visit_ctx.scope) or \
                 already_declared(name, visit_ctx.scope):
                 self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
             else:
+                # Single variable, not declared yet
+                self.linter.add_var(target_str, normalized_type, scope=visit_ctx.scope)
                 self.set_type(target_str, visit_ctx.scope)
-                self.print_line(f"{'auto' if is_unpacking else cpp_type}{' [' if is_unpacking else ' '}{target_str}{']' if is_unpacking else ''} = {value_str};", visit_ctx.current_indent)
+                self.print_line(f"{cpp_type} {target_str} = {value_str};", visit_ctx.current_indent)
                 if target_str == "temp":
                     self.unset_type(target_str, visit_ctx.scope)
 

@@ -16,7 +16,9 @@ def run():
         else:
             raise Exception("No input file")
 
-    input_file_no_ext = Utils.get_file_no_ext(input_file)
+    # Extract just the filename without the directory path
+    input_filename = os.path.basename(input_file)
+    input_file_no_ext = Utils.get_file_no_ext(input_filename)
     if len(sys.argv) > 2:
         output_file = sys.argv[2]
     else:
@@ -27,6 +29,7 @@ def run():
 
     if not os.path.exists("out/"):
         os.makedirs("out/")
+        
     sys.stdout = open(f'out/{output_file}', 'w')
     sys.stderr = open(f'out/{output_file}.err', 'w')
     

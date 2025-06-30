@@ -81,11 +81,22 @@ class Linter:
 
     def does_has_type(self, name, scope=["global"]):
         cur_scope = self.has_typed
+        scope_refs = []
+        
+        # Build list of scope references from outermost to innermost
+        # Stop when we can't find a scope (but still check parent scopes)
         for s in scope:
             if s not in cur_scope:
-                return False
+                break
             cur_scope = cur_scope[s]
-        return name in cur_scope and cur_scope[name]
+            scope_refs.append(cur_scope)
+        
+        # Check from innermost to outermost scope
+        for scope_ref in reversed(scope_refs):
+            if name in scope_ref and scope_ref[name]:
+                return True
+        
+        return False
 
     def unset_has_type(self, name, scope=["global"]):
         cur_scope = self.has_typed
@@ -214,6 +225,8 @@ class Linter:
                 return f"{container_type}<{', '.join(self.python_to_cpp_type(t) for t in t_name[1:])}"
             # Check if the first element is actually a basic type, not a container
             # This handles cases where the type system produces malformed type representations
+            if isinstance(container_type, list):
+                container_type = container_type[0]
             if container_type in Linter.TYPES:
                 # This seems to be a malformed type list - just return the first element's type
                 # This is a fallback for cases where type inference produces incorrect structures
