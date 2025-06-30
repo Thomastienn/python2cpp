@@ -47,11 +47,13 @@ class ExprParser:
         else:
             self.logger.debug("%s%s", constants.TAB * current_indent, line)
 
-    def visit_Str(self, string: str):
+    def visit_Str(self, string: str, visit_ctx: VisitContext):
         if string == "DEBUG":
-            self.logger.debug(string)
+            self.logger.debug("Debug info - has_typed: %s", self.linter.has_typed)
+            self.logger.debug("Debug info - typed_vars: %s", self.linter.typed_vars)
+            self.logger.debug("Debug info - funcs: %s", self.linter.funcs)
             return
-        raise RuntimeError("You are not suppose to end up here")
+        raise RuntimeError("You are not supposed to end up here")
         
     def visit(self, node: ast.AST, visit_ctx: VisitContext = VisitContext()):
         if visit_ctx.allow_print is None:

@@ -15,5 +15,10 @@ setup(
     include_package_data = True,
     install_requires = get_requirement(),
     python_requires='>=3.10',
+    entry_points={
+        'console_scripts': [
+            'py2c=py2c.commands.cli:main',
+        ],
+    },
 )
 

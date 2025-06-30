@@ -72,4 +72,4 @@ def parse(tree):
     # print(printer.linter.typed_vars, file=sys.stderr)
     # print(printer.linter.funcs, file=sys.stderr)
 
-    printer.visit("DEBUG", VisitContext(allow_print=False))
+    printer.visit_Str("DEBUG", VisitContext(allow_print=False))

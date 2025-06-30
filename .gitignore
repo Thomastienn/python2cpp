@@ -6,3 +6,4 @@ test.py
 venv/
 out/
 debug*
+*.egg-info
