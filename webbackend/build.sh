@@ -1,1 +1,1 @@
-cd .. && source venv/bin/activate && pip install -e .
+cd .. && . venv/bin/activate && pip install -e .
