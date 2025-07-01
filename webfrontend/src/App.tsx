@@ -5,7 +5,8 @@ import { MyEditor } from './components/myeditor/myeditor';
 import { useState } from 'react';
 
 export interface ConvertCodeResponse {
-    code: string;
+    code?: string;
+    detail?: string;
 }
 
 export function App() {
