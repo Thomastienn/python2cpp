@@ -423,6 +423,10 @@ class ExprParser:
             PARAMS
             node: ast.Call which is calling range() func
         """
+        if visit_ctx.is_scanning:
+            for arg in node.args:
+                if self.should_scan_func(arg, visit_ctx):
+                    self.visit(arg, visit_ctx)
         if save_type:
             # Create the for loop scope
             for_scope_name = f"for_{id(node_for)}"
@@ -602,9 +606,10 @@ class ExprParser:
         if visit_ctx.is_scanning:
             if self.should_scan_func(node.value, visit_ctx):
                 self.visit(node.value, visit_ctx)
-            for arg in node.value.args:
-                if self.should_scan_func(arg, visit_ctx):
-                    self.visit(arg, visit_ctx)
+            if isinstance(node.value, ast.Call):
+                for arg in node.value.args:
+                    if self.should_scan_func(arg, visit_ctx):
+                        self.visit(arg, visit_ctx)
                 
         repr_ctx = ReprVisitContext(
             processor=self,

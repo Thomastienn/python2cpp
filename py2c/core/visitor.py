@@ -1,6 +1,8 @@
 import sys
 import ast
 import io
+from copy import deepcopy
+
 from collections import OrderedDict
 from py2c.utils.linter import Linter
 from py2c.utils.utils import Utils
@@ -131,16 +133,23 @@ class ReprVisitor():
         return result
 
     def visit_BinOp(self, node: ast.BinOp, repr_ctx: ReprVisitContext):
+        if repr_ctx.parser_ctx.is_scanning:
+            if repr_ctx.processor.should_scan_func(node.left, repr_ctx.parser_ctx):
+                repr_ctx.processor.visit(node.left, repr_ctx.parser_ctx)
+            if repr_ctx.processor.should_scan_func(node.right, repr_ctx.parser_ctx):
+                repr_ctx.processor.visit(node.right, repr_ctx.parser_ctx)
+        get_type_ctx = ReprVisitContext(
+            return_type=True,
+            processor=repr_ctx.processor,
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
+        )
+        type_left = self.visit(node.left, get_type_ctx)
+        type_right = self.visit(node.right, get_type_ctx)
+        op_repr = self.visit_op(node.op)
         if repr_ctx.return_type:
-            new_ctx = ReprVisitContext(
-                return_type=True,
-                processor=repr_ctx.processor,
-                parser_ctx=repr_ctx.parser_ctx,
-                expr_node = repr_ctx.expr_node
-            )
-            type_left = self.visit(node.left, new_ctx)
-            type_right = self.visit(node.right, new_ctx)
-            return self.linter.get_binop_type(type_left, type_right, self.visit_op(node.op))
+            return self.linter.get_binop_type(type_left, type_right, op_repr)
+
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
             parser_ctx=repr_ctx.parser_ctx,
@@ -151,7 +160,60 @@ class ReprVisitor():
             Utils.template_uses.add(template_name)
             return f"{template_name.lower()}({self.visit(node.left, new_ctx)}, {self.visit(node.right, new_ctx)})"
 
-        return f"({self.visit(node.left, new_ctx)} {self.visit_op(node.op)} {self.visit(node.right, new_ctx)})"
+        node_left_repr = self.visit(node.left, new_ctx)
+        node_right_repr = self.visit(node.right, new_ctx)
+        
+        if isinstance(node.op, ast.Mult):
+            if self.linter.is_list_repeatition(type_left, type_right, op_repr):
+                if isinstance(type_left, list) and type_left[0] == "list":
+                    list_type = type_left
+                    int_type = type_right
+                    list_repr = node_left_repr
+                    int_repr = node_right_repr
+                    list_node = node.left
+                    int_node = node.right
+                else:
+                    list_type = type_right
+                    int_type = type_left
+                    list_repr = node_right_repr
+                    int_repr = node_left_repr
+                    list_node = node.right
+                    int_node = node.left
+
+                def build_recursive(cur_list_type):
+                    if len(cur_list_type) == 2:
+                        temp = deepcopy(list_node)
+                        while isinstance(temp, ast.List):
+                            temp = temp.elts[0]
+                        default_val = self.visit(temp, new_ctx)
+                        return f"vector<{cur_list_type[-1]}>(1, {default_val})"
+
+                    return f"vector<{cur_list_type[0]}>(1, {build_recursive(cur_list_type[1:])})"
+
+                return f"({int_repr}, {build_recursive(list_type[1:])})"
+
+        return f"({node_left_repr} {op_repr} {node_right_repr})"
+
+    def is_list_repeation_node(self, node: ast.BinOp) -> bool:
+        """
+            Check if the node is a list repeatition node
+            e.g. [1, 2] * 3 or 3 * [1, 2]
+        """
+        if not isinstance(node.op, ast.Mult):
+            return False
+        if not isinstance(node.left, ast.List) and not isinstance(node.right, ast.List):
+            return False
+
+        get_type_ctx = ReprVisitContext(
+            return_type=True,
+            processor=self.linter.processor,
+            parser_ctx=self.linter.parser_ctx,
+            expr_node=self.linter.expr_node
+        )
+        type_left = self.visit(node.left, get_type_ctx)
+        type_right = self.visit(node.right, get_type_ctx)
+
+        return self.linter.is_list_repeatition(type_left, type_right, "*")
 
     def handle_pyfunc(self, node: ast.Call, repr_ctx: ReprVisitContext):
         new_ctx = ReprVisitContext(

@@ -269,6 +269,13 @@ class Linter:
             return "int"
     
         raise NotImplementedError(f"Attribute {attr} not implemented")
+
+    def is_list_repeatition(self, pytype_left, pytype_right, op: str):
+        if op != "*":
+            return False
+        return (isinstance(pytype_left, list) and pytype_left[0] == "list" and pytype_right=="int") or \
+            (isinstance(pytype_right, list) and pytype_right[0] == "list" and pytype_left=="int")
+
     
     def get_binop_type(self, pytype_left, pytype_right, op: str):
         if not isinstance(pytype_left, list) and \
@@ -281,11 +288,8 @@ class Linter:
             pytype_right = self.get_var_type(pytype_right)
         
         case = (pytype_left, pytype_right)
-
-        if "list" in case and "int" in case:
-            if op == "*":
-                return "list"
-            raise SyntaxError(f"Cannot add int and list not implemented")
+        if self.is_list_repeatition(pytype_left, pytype_right, op):
+            return pytype_left if isinstance(pytype_left, list) else pytype_right
             
         if "str" in case and "int" in case:
             return "str"

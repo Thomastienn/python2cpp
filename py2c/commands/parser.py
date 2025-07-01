@@ -52,7 +52,7 @@ def parse(tree):
     for template in Utils.template_uses:
         print(CPPTemplate[template].value)
 
-    print("\n// Your functions are here\n" if len(funcs) > 0 else "", end="")
+    print("\n// Your functions are here\n" if sum(func.user_func and func.return_pytype is not None for func in funcs.values()) > 0 else "", end="")
     # ALL DECLARED FUNCTIONS
     for func in funcs.values():
         if func.user_func and func.return_pytype is not None:
