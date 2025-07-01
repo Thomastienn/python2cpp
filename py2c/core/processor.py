@@ -451,7 +451,7 @@ class ExprParser:
             raise RuntimeError("Too many arguments for range()")
             
         assert end != None, "my badd, end of range should be parsed"
-        add_str = f"{var}++" if step == 1 else f"{var} += {step}"
+        add_str = f"{var}++" if step == "1" else f"{var} += {step}"
         self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
 
     def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type, node_for: ast.For):
@@ -459,28 +459,35 @@ class ExprParser:
             if self.should_scan_func(node, visit_ctx):
                 self.visit(node, visit_ctx)
 
+        new_ctx = visit_ctx.copy()
+        new_ctx.scope = new_ctx.scope[:-1]
         repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
-            parser_ctx = visit_ctx,
+            parser_ctx = new_ctx,
             expr_node=node
         )
-        func_return_type = self.repr.visit(node, repr_ctx)
+        iter_return_type = self.repr.visit(node, repr_ctx)
         repr_ctx_2 = ReprVisitContext(
             processor=self,
             parser_ctx = visit_ctx,
             expr_node=node
         )
-        # We have to remove the parent type
-        func_return_type = func_return_type[1:]
-        if len(func_return_type) == 1:
-            func_return_type = func_return_type[0]
-        cpp_type = self.linter.python_to_cpp_type(func_return_type)
+        if iter_return_type == "str":
+            iter_return_type = "char"
+        else:
+            # This is assuming this is a loop over iterator
+            # We need handle for string too
+            # We have to remove the parent type
+            iter_return_type = iter_return_type[1:]
+            if len(iter_return_type) == 1:
+                iter_return_type = iter_return_type[0]
+        cpp_type = self.linter.python_to_cpp_type(iter_return_type)
         if save_type:
             # Create the for loop scope
             for_scope_name = f"for_{id(node_for)}"
             new_scope = visit_ctx.scope + [for_scope_name]
-            self.linter.add_var(var, func_return_type, scope=new_scope)
+            self.linter.add_var(var, iter_return_type, scope=new_scope)
         self.print_line(f"for ({cpp_type} {var} : {self.repr.visit(node, repr_ctx_2)}) {{", visit_ctx.current_indent)
 
     def print_forloop(self, node: ast.For, visit_ctx: VisitContext, save_type=True):

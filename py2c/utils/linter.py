@@ -20,9 +20,10 @@ class Linter:
         "None": "void",
     }
     CAST_TYPES = {
+        "char": "char",
         "pair": "pair", 
         "auto": "auto",
-        "Unknown": "Unknown",
+        "Unknown": "auto",
     }
     def __init__(self, funcs: dict[str, Function]):
         self.typed_vars = {
@@ -234,8 +235,6 @@ class Linter:
             raise NotImplementedError(f"{container_type} not implemented")
         if t_name in Linter.CAST_TYPES:
             return Linter.CAST_TYPES[t_name]
-        if t_name == "Unknown":
-            return "auto"  # Use auto for unknown types during scanning
         if t_name not in Linter.TYPES:
             raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
         return Linter.TYPES[t_name]
@@ -248,6 +247,8 @@ class Linter:
             return base_type[size]
         except (KeyError, IndexError, TypeError):
             # If we can't determine the subscript type, return Unknown
+            if size == len(base_type) and base_type[-1] == "str":
+                return "char"
             return "Unknown"
 
     def get_attr_type(self, pytype_from, attr: str):

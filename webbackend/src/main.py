@@ -1,4 +1,5 @@
 import ast
+import traceback
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,7 +36,8 @@ async def convert(req: CodeRequest):
     try:
         result = Utils.capture_output(parse, tree)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"{tb}\n{e}")
 
     return {
         "code": result,

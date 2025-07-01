@@ -32,20 +32,19 @@ export function App() {
                 }),
             },
         );
-        if (!response.ok) {
-            setCppCode('// ERROR: My bad, this too tough for me :(');
-            console.error(
-                'Error converting Python to C++:',
-                response.statusText,
-            );
-            return;
-        }
         const data: ConvertCodeResponse = await response.json();
-        setCppCode(
-            data.code ||
-            '// ERROR: No code returned from server (prob my fault)',
-        );
-        console.log('Conversion complete!');
+        if (response.status !== 200) {
+            let new_cppCode = '// ERROR: My bad, this too tough for me :(\n';
+            new_cppCode += '// If you know how to fix this, make a PR\n\n';
+            new_cppCode += data.detail;
+            setCppCode(new_cppCode);
+        } else {
+            setCppCode(
+                data.code ||
+                '// ERROR: No code returned from server (prob my fault)',
+            );
+            console.log('Conversion complete!');
+        }
         setPending(false);
     };
 
@@ -79,7 +78,8 @@ export function App() {
                 <div className="noti-bar">
                     {' '}
                     If you wait for more half a minute, it could be my backend
-                    is cold starting.
+                    is cold starting. Please be patient, check console to make
+                    sure there is no error.
                     <span
                         className="close-noti"
                         onClick={() => {
