@@ -232,6 +232,9 @@ class Linter:
                 # This seems to be a malformed type list - just return the first element's type
                 # This is a fallback for cases where type inference produces incorrect structures
                 return Linter.TYPES[container_type]
+            if container_type in Linter.CAST_TYPES:
+                return Linter.CAST_TYPES[container_type]
+
             raise NotImplementedError(f"{container_type} not implemented")
         if t_name in Linter.CAST_TYPES:
             return Linter.CAST_TYPES[t_name]
@@ -244,11 +247,13 @@ class Linter:
             base_type = self.get_var_type(base_name, scope)
             if base_type == "Unknown":
                 return "Unknown"
+            if base_type == "str" or \
+                (isinstance(base_type, list) and base_type[-1] == "str" \
+                 and size == len(base_type)):
+                return "char"
             return base_type[size]
         except (KeyError, IndexError, TypeError):
             # If we can't determine the subscript type, return Unknown
-            if size == len(base_type) and base_type[-1] == "str":
-                return "char"
             return "Unknown"
 
     def get_attr_type(self, pytype_from, attr: str):

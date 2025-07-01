@@ -28,17 +28,19 @@ class ReprVisitor():
         if func_name in Linter.TYPES:
             return func_name
         
-        # TODO: Do lambda functions too
         if func_name == "map":
+            # TODO: Do lambda functions too
             return func_node.args[0].id
         elif func_name == "input":
             return "str"
-        elif func_name == "len":
+        elif func_name in ["len", "int", "ord"]:
             return "int"
         elif func_name in ["min", "max"]:
             # Get the type of the first argument
             first_arg = func_node.args[0]
             return self.visit(first_arg, repr_ctx)
+        elif func_name == "chr":
+            return "char"
 
         # TODO: Add more
         return "Unknown"
@@ -114,13 +116,18 @@ class ReprVisitor():
             cur = cur.value
         result = self.visit(cur, new_ctx)
         
+        final_type = self.linter.get_subscript_type(result, len(access), scope=repr_ctx.parser_ctx.scope)
         if repr_ctx.return_type:
-            return self.linter.get_subscript_type(result, len(access), scope=repr_ctx.parser_ctx.scope)
+            # Use string for all char and convert them down below
+            # return "str" if final_type == "char" else final_type
+            return final_type
         
         for acc in reversed(access):
             if acc == "-1":
                 acc = f"{result}.size() - 1"
             result += f"[{acc}]"
+        # if final_type == "char":
+        #     return f"string(1, {result})"
         return result
 
     def visit_BinOp(self, node: ast.BinOp, repr_ctx: ReprVisitContext):
@@ -209,7 +216,19 @@ class ReprVisitor():
             if type_other == "int" and func_name == "str":
                 return f"to_string({self.visit(node.args[0], new_ctx)})"
             return f"({Linter.TYPES[func_name]}) ({self.visit(node.args[0], new_ctx)})"
-        return None
+        if func_name == "ord":
+            type_arg = self.visit(node.args[0], get_type_ctx)
+            if type_arg == "char":
+                return f"static_cast<int>({self.visit(node.args[0], new_ctx)})"
+            if type_arg == "str":
+                return f"static_cast<int>({self.visit(node.args[0], new_ctx)}.at(0))"
+
+            raise ValueError(f"Cannot convert {type_arg} to int using ord()")
+
+        if func_name == "chr":
+            return f"static_cast<char>({self.visit(node.args[0], new_ctx)})"
+
+        return f"{func_name}({', '.join(self.visit(arg, new_ctx) for arg in node.args)})"
             
     # TODO: This shouldn't be here, we will move it back to processor.py
     def visit_Call(self, node: ast.Call, repr_ctx: ReprVisitContext):
