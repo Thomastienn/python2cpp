@@ -1,4 +1,8 @@
-# IN PROGRESS
+# Py2Cpp
+
+- A simple python to C++ converter
+- CLI, API, Web supported
+- In development (expect LOTS OF bugs)
 
 ### Note
 
