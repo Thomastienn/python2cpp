@@ -2,12 +2,14 @@
     display: flex;
     flex-direction: row;
     justify-content: flex-start;
+    flex-wrap: wrap;
     align-items: center;
     width: 100%;
     height: 3rem;
     flex-shrink: 0;
     box-sizing: border-box;
-    padding: 0.5rem;
+    /* padding: 0.5rem; */
+    padding-left: 1rem;
     margin-bottom: 1rem;
     gap: 1rem;
 
@@ -16,6 +18,38 @@
     border: 1px solid var(--glass-border);
     backdrop-filter: var(--blur-effect);
     -webkit-backdrop-filter: var(--blur-effect);
+}
+
+@media (max-width: 768px) {
+    .func-tab {
+        justify-content: center;
+        height: auto;
+        min-height: 3rem;
+        padding: 0.75rem;
+        gap: 0.5rem;
+    }
+
+    .func-btn {
+        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+        min-width: 80px;
+        text-align: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .func-tab {
+        gap: 0.3rem;
+        padding: 0.5rem;
+    }
+
+    .func-btn {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.6rem;
+        min-width: 40px;
+        flex: 1;
+        max-width: 100px;
+    }
 }
 
 .func-btn {
