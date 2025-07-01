@@ -627,6 +627,16 @@ class ExprParser:
         self.print_line(value + ";", visit_ctx.current_indent)
         return type(value).__name__
 
+    def visit_Break(self, node: ast.Break, visit_ctx: VisitContext):
+        if visit_ctx.is_scanning:
+            return
+        self.print_line("break;", visit_ctx.current_indent)
+
+    def visit_Continue(self, node: ast.Continue, visit_ctx: VisitContext):
+        if visit_ctx.is_scanning:
+            return
+        self.print_line("continue;", visit_ctx.current_indent)
+
     def visit_Pass(self, node: ast.Pass, visit_ctx: VisitContext):
         pass
 
