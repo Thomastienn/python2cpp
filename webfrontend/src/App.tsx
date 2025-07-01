@@ -21,32 +21,41 @@ export function App() {
     const convertPythonToCpp = async () => {
         console.log('Converting Python to C++...');
         setPending(true);
-        const response = await fetch(
-            'https://python2cpp.onrender.com/convert',
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
+        try {
+            const response = await fetch(
+                'https://python2cpp.onrender.com/convert',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        pycode: pyCode,
+                    }),
                 },
-                body: JSON.stringify({
-                    pycode: pyCode,
-                }),
-            },
-        );
-        const data: ConvertCodeResponse = await response.json();
-        if (response.status !== 200) {
-            let new_cppCode = '// ERROR: My bad, this too tough for me :(\n';
-            new_cppCode += '// If you know how to fix this, make a PR\n\n';
-            new_cppCode += data.detail;
-            setCppCode(new_cppCode);
-        } else {
-            setCppCode(
-                data.code ||
-                '// ERROR: No code returned from server (prob my fault)',
             );
-            console.log('Conversion complete!');
+            const data: ConvertCodeResponse = await response.json();
+            if (response.status !== 200) {
+                let new_cppCode =
+                    '// ERROR: My bad, this too tough for me :(\n';
+                new_cppCode += '// If you know how to fix this, make a PR\n\n';
+                new_cppCode += data.detail;
+                setCppCode(new_cppCode);
+            } else {
+                setCppCode(
+                    data.code ||
+                        '// ERROR: No code returned from server (prob my fault)',
+                );
+                console.log('Conversion complete!');
+            }
+        } catch (error) {
+            console.error('Error during conversion:', error);
+            setCppCode(
+                '// ERROR: Failed to convert Python to C++\n// Check console for details',
+            );
+        } finally {
+            setPending(false);
         }
-        setPending(false);
     };
 
     const resetEditors = () => {
