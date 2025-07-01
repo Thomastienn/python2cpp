@@ -48,11 +48,11 @@ def parse(tree):
     print(HEADER)
 
     # ALL TEMPLATES USED
-    print("\n// Just my templates to replace python functions",end="")
+    print("\n// Just my templates to replace python functions" if len(Utils.template_uses) > 0  else "",end="")
     for template in Utils.template_uses:
         print(CPPTemplate[template].value)
 
-    print("\n// Your functions are here")
+    print("\n// Your functions are here\n" if len(funcs) > 0 else "", end="")
     # ALL DECLARED FUNCTIONS
     for func in funcs.values():
         if func.user_func and func.return_pytype is not None:

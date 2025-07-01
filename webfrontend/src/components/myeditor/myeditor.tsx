@@ -1,44 +1,113 @@
-import Prism from 'prismjs';
 import './myeditor.css';
-import Editor from 'react-simple-code-editor';
-import 'prismjs/components/prism-python';
-import 'prismjs/components/prism-c';
-import 'prismjs/components/prism-cpp';
-import 'prismjs/themes/prism-tomorrow.css';
+import { Editor } from '@monaco-editor/react';
+import { useState } from 'react';
 
 export interface MyEditorProps {
     code?: string;
     setCode: (code: string) => void;
     language: 'python' | 'cpp';
+    pending: boolean;
 }
 
-export const MyEditor = ({ code, setCode, language }: MyEditorProps) => {
+export const MyEditor = ({
+    code,
+    setCode,
+    language,
+    pending,
+}: MyEditorProps) => {
     code = code || '';
-    let mlanguages = null;
-    if (language === 'python') {
-        mlanguages = Prism.languages.python;
-    }
-    if (language === 'cpp') {
-        mlanguages = Prism.languages.cpp;
-    }
+    const [isDragOver, setIsDragOver] = useState(false);
 
-    if (mlanguages == null) {
-        throw new Error('Unsupported language');
-    }
+    const handleDragEnter = (e: React.DragEvent) => {
+        if (language === 'python') {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDragOver(true);
+        }
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        if (language === 'python') {
+            e.preventDefault();
+            e.stopPropagation();
+            // Only hide if we're actually leaving the container
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX;
+            const y = e.clientY;
+
+            if (
+                x < rect.left ||
+                x > rect.right ||
+                y < rect.top ||
+                y > rect.bottom
+            ) {
+                setIsDragOver(false);
+            }
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        if (language === 'python') {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        if (language === 'python') {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsDragOver(false);
+
+            const files = Array.from(e.dataTransfer.files);
+            if (files.length > 0) {
+                const file = files[0];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const content = event.target?.result as string;
+                    setCode(content);
+                };
+                reader.readAsText(file);
+            }
+        }
+    };
     return (
-        <div className="actual-editor">
+        <div
+            className={`actual-editor ${pending ? 'pending' : ''} ${isDragOver && language === 'python' ? 'drag-over' : ''}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+        >
             <Editor
+                height="100%"
+                language={language}
                 value={code}
-                onValueChange={(code) => setCode(code)}
-                highlight={(code) =>
-                    Prism.highlight(code, mlanguages, language)
-                }
-                padding={10}
-                style={{
-                    fontFamily: '"Fira code", "Fira Mono", monospace',
+                onChange={(value) => setCode(value || '')}
+                theme="vs-dark"
+                options={{
                     fontSize: 16,
-                    width: '100%',
-                    height: '100%',
+                    fontFamily:
+                        'Fira Code, Monaco, Consolas, Ubuntu Mono, monospace',
+                    lineHeight: 24,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    wordWrap: 'off',
+                    automaticLayout: true,
+                    lineNumbers: 'on',
+                    glyphMargin: false,
+                    folding: false,
+                    lineDecorationsWidth: 0,
+                    lineNumbersMinChars: 3,
+                    renderLineHighlight: 'line',
+                    selectOnLineNumbers: true,
+                    roundedSelection: false,
+                    readOnly: language === 'cpp',
+                    cursorStyle: language === 'cpp' ? undefined : 'line',
+                    cursorBlinking: language === 'cpp' ? undefined : 'blink',
+                    hideCursorInOverviewRuler: language === 'cpp',
+                    tabSize: 4,
+                    insertSpaces: true,
                 }}
             />
         </div>
