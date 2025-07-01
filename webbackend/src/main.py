@@ -18,6 +18,13 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+async def root():
+    """
+    Root endpoint to check if the server is running.
+    """
+    return {"message": "Welcome to the Python to C++ converter API!"}
+
 @app.post("/convert")
 async def convert(req: CodeRequest):
     """

@@ -1,7 +1,6 @@
 import Prism from 'prismjs';
 import './myeditor.css';
 import Editor from 'react-simple-code-editor';
-import { useState } from 'react';
 import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-c';
 import 'prismjs/components/prism-cpp';

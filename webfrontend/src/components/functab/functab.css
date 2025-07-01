@@ -8,6 +8,8 @@
     flex-shrink: 0;
     box-sizing: border-box;
     padding: 0.5rem;
+    margin-bottom: 1rem;
+    gap: 1rem;
 
     background: var(--glass-bg);
     border-radius: var(--border-radius);
@@ -16,7 +18,7 @@
     -webkit-backdrop-filter: var(--blur-effect);
 }
 
-.func-convert {
+.func-btn {
     background: var(--glass-bg);
     color: var(--primary-color);
     font-size: 1rem;
@@ -30,7 +32,14 @@
     -webkit-backdrop-filter: var(--blur-effect);
 }
 
-.func-convert:hover {
+.func-btn:disabled {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.5);
+    cursor: not-allowed;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.func-btn:hover {
     background: rgba(255, 255, 255, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.25);
 }

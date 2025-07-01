@@ -9,10 +9,11 @@ export interface ConvertCodeResponse {
 }
 
 export function App() {
-    const [pyCode, setPyCode] = useState<string>('# Python code goes here');
-    const [cppCode, setCppCode] = useState<string>(
-        '// C++ code will be generated here',
-    );
+    const defaultPyCode = '# Python code goes here';
+    const defaultCppCode = '// C++ code will be generated here';
+
+    const [pyCode, setPyCode] = useState<string>(defaultPyCode);
+    const [cppCode, setCppCode] = useState<string>(defaultCppCode);
 
     const convertPythonToCpp = async () => {
         console.log('Converting Python to C++...');
@@ -39,10 +40,22 @@ export function App() {
         setCppCode(data.code || 'ERROR: No C++ code returned');
         console.log('Conversion complete!');
     };
+
+    const resetEditors = () => {
+        setPyCode(defaultPyCode);
+        setCppCode(defaultCppCode);
+    };
+
+    const funcUpload = () => { };
+
     return (
         <div className="main-content">
             <h1 className="main-header">Py2Cpp</h1>
-            <FuncTab funcConvert={convertPythonToCpp} />
+            <FuncTab
+                funcConvert={convertPythonToCpp}
+                funcUpload={funcUpload}
+                funcReset={resetEditors}
+            />
             <div className="editor">
                 <MyEditor code={pyCode} setCode={setPyCode} language="python" />
                 <MyEditor code={cppCode} setCode={setCppCode} language="cpp" />
