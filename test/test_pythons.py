@@ -3,8 +3,9 @@ import subprocess
 
 if __name__ == "__main__":
     # Check if the 'out' directory exists, if not, create it
-    if not os.path.exists("out/"):
-        os.makedirs("out/")
+    output_dir = "test_out/"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     cur_path = os.path.dirname(os.path.abspath(__file__))
     ROOT = cur_path[:cur_path.rfind("py2cpp") + len("py2cpp")]
@@ -13,7 +14,7 @@ if __name__ == "__main__":
         if file.endswith(".py"):
             print(f"Executing {file}...")
             result = subprocess.run(
-                    ["python", "main.py", f"test_pythons/{file}", f"{file[:-3]}.cpp"],
+                ["python", "main.py", f"test_pythons/{file}", f"{output_dir}{file[:-3]}.cpp"],
                 capture_output=True,
                 text=True
             )
@@ -21,6 +22,6 @@ if __name__ == "__main__":
                 raise Exception(f"Error running {file}: {result.stderr}")
             print(f"Output of {file}:\n{result.stdout}")
     
-    print("All Python files in 'out/' executed successfully.")
+    print(f"All Python files in {output_dir} executed successfully.")
                 
             

@@ -37,7 +37,7 @@ class ExprParser:
 
     def should_scan_func(self, node: ast.AST, visit_ctx: VisitContext):
         return isinstance(node, ast.Call) and \
-            node.func.id in self.linter.funcs and \
+            isinstance(node.func, ast.Name) and node.func.id in self.linter.funcs and \
             (self.linter.funcs[node.func.id].return_pytype is None) and \
             node.func.id not in visit_ctx.scope
 
@@ -222,7 +222,14 @@ class ExprParser:
                 # Single variable, not declared yet
                 self.linter.add_var(target_str, normalized_type, scope=visit_ctx.scope)
                 self.set_type(target_str, visit_ctx.scope)
-                self.print_line(f"{cpp_type} {target_str} = {value_str};", visit_ctx.current_indent)
+
+                repr_ctx = ReprVisitContext(
+                    processor=self,
+                    parser_ctx=visit_ctx,
+                    expr_node=node
+                )
+                assign_repr = "" if (isinstance(value, ast.BinOp) and self.repr.is_list_repeation_node(value, repr_ctx)) else " = "
+                self.print_line(f"{cpp_type} {target_str}{assign_repr}{value_str};", visit_ctx.current_indent)
                 if target_str == "temp":
                     self.unset_type(target_str, visit_ctx.scope)
 

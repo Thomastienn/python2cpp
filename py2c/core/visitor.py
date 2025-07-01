@@ -180,12 +180,16 @@ class ReprVisitor():
                     list_node = node.right
                     int_node = node.left
 
+                temp = deepcopy(list_node)
+                while isinstance(temp, ast.List):
+                    temp = temp.elts[0]
+                default_val = self.visit(temp, new_ctx)
+
+                if len(list_type) == 2:
+                    return f"({int_repr}, {default_val}))"
+
                 def build_recursive(cur_list_type):
                     if len(cur_list_type) == 2:
-                        temp = deepcopy(list_node)
-                        while isinstance(temp, ast.List):
-                            temp = temp.elts[0]
-                        default_val = self.visit(temp, new_ctx)
                         return f"vector<{cur_list_type[-1]}>(1, {default_val})"
 
                     return f"vector<{cur_list_type[0]}>(1, {build_recursive(cur_list_type[1:])})"
@@ -194,21 +198,19 @@ class ReprVisitor():
 
         return f"({node_left_repr} {op_repr} {node_right_repr})"
 
-    def is_list_repeation_node(self, node: ast.BinOp) -> bool:
+    def is_list_repeation_node(self, node: ast.BinOp, repr_ctx: ReprVisitContext) -> bool:
         """
             Check if the node is a list repeatition node
             e.g. [1, 2] * 3 or 3 * [1, 2]
         """
         if not isinstance(node.op, ast.Mult):
             return False
-        if not isinstance(node.left, ast.List) and not isinstance(node.right, ast.List):
-            return False
 
         get_type_ctx = ReprVisitContext(
             return_type=True,
-            processor=self.linter.processor,
-            parser_ctx=self.linter.parser_ctx,
-            expr_node=self.linter.expr_node
+            processor=repr_ctx.processor,
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
         )
         type_left = self.visit(node.left, get_type_ctx)
         type_right = self.visit(node.right, get_type_ctx)
@@ -290,7 +292,8 @@ class ReprVisitor():
         if func_name == "chr":
             return f"static_cast<char>({self.visit(node.args[0], new_ctx)})"
 
-        return f"{func_name}({', '.join(self.visit(arg, new_ctx) for arg in node.args)})"
+        # This is not a builtin function, so we need to handle it
+        return None
             
     # TODO: This shouldn't be here, we will move it back to processor.py
     def visit_Call(self, node: ast.Call, repr_ctx: ReprVisitContext):
