@@ -2,6 +2,7 @@ import ast
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import HTTPException
 
 from py2c.commands.parser import parse
 from py2c.utils.utils import Utils
@@ -34,11 +35,8 @@ async def convert(req: CodeRequest):
     try:
         result = Utils.capture_output(parse, tree)
     except Exception as e:
-        return {
-            "status_code": 500,
-            "message": str(e),
-        }
+        raise HTTPException(status_code=500, detail=str(e))
+
     return {
-        "status_code": 200,
         "code": result,
     }

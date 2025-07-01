@@ -33,6 +33,7 @@ export function App() {
             },
         );
         if (!response.ok) {
+            setCppCode('// ERROR: My bad, this too tough for me :(');
             console.error(
                 'Error converting Python to C++:',
                 response.statusText,
@@ -40,7 +41,10 @@ export function App() {
             return;
         }
         const data: ConvertCodeResponse = await response.json();
-        setCppCode(data.code || '// ERROR: My bad, this too tough for me :(');
+        setCppCode(
+            data.code ||
+            '// ERROR: No code returned from server (prob my fault)',
+        );
         console.log('Conversion complete!');
         setPending(false);
     };

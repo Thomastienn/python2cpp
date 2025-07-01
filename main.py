@@ -83,6 +83,9 @@ def run():
         print(f"Error: '{input_file}' is not a file", file=sys.stderr)
         sys.exit(1)
     
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+
     try:
         # Determine output filename
         input_filename = os.path.basename(input_file)
@@ -115,24 +118,13 @@ def run():
         logger.debug("Parsing Python code")
         tree = ast.parse(source_code)
         
-        # Redirect stdout and stderr for the conversion process
-        original_stdout = sys.stdout
-        original_stderr = sys.stderr
-        
         logger.debug(f"Writing output to: {output_file}")
         logger.debug(f"Writing errors to: {error_path}")
         
         sys.stdout = open(output_file, 'w', encoding='utf-8')
         sys.stderr = open(error_path, 'w', encoding='utf-8')
         
-        try:
-            parse(tree)
-        finally:
-            # Always restore stdout/stderr and close files
-            sys.stdout.close()
-            sys.stderr.close()
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
+        parse(tree)
         
         # Check if there were any errors
         if os.path.getsize(error_path) > 0:
@@ -153,9 +145,16 @@ def run():
         
         if args.debug:
             import traceback
-            traceback.print_exc()
+            traceback.print_exc(file=sys.stderr)
         
         sys.exit(1)
+    finally:
+        # Always restore stdout/stderr and close files
+        sys.stdout.close()
+        sys.stderr.close()
+        sys.stdout = original_stdout
+        sys.stderr = original_stderr
+
 
 if __name__ == "__main__":
     run()
