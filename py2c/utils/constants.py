@@ -25,7 +25,8 @@ SECURITY_CONFIG = {
     'ALLOWED_ORIGINS': [
         'http://localhost:3000',
         'http://127.0.0.1:3000', 
-        'https://python2cpp.onrender.com'
+        'https://python2cpp.onrender.com',
+        'https://thomastienn.github.io'
     ],
     
     # Content Security Policy
