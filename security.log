@@ -1,0 +1,2 @@
+2025-07-02 00:53:06 - SECURITY - INFO - CLI conversion: /tmp/test_input.py -> /home/runner/work/python2cpp/python2cpp/test_input.cpp, size: 25 bytes
+2025-07-02 00:53:19 - SECURITY - WARNING - Security violation in CLI: Input size exceeds maximum allowed size of 10240 bytes

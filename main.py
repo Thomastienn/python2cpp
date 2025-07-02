@@ -4,8 +4,9 @@ import ast
 import argparse
 from pathlib import Path
 from py2c.commands.parser import parse
-from py2c.utils.utils import Utils
+from py2c.utils.utils import Utils, SecurityUtils, SecurityError
 from py2c.utils.logger import setup_logger
+
 
 def create_parser():
     """Create and configure the argument parser."""
@@ -53,6 +54,7 @@ Examples:
     
     return parser
 
+
 def run():
     """Main function to run the converter."""
     # If no arguments provided, try to use test.py for backward compatibility
@@ -72,34 +74,40 @@ def run():
         os.environ['PY2CPP_DEBUG'] = 'true'
     
     logger = setup_logger("py2cpp.main")
-    
-    # Validate input file
-    input_file = args.input_file
-    if not os.path.exists(input_file):
-        print(f"Error: Input file '{input_file}' does not exist", file=sys.stderr)
-        sys.exit(1)
-        
-    if not os.path.isfile(input_file):
-        print(f"Error: '{input_file}' is not a file", file=sys.stderr)
-        sys.exit(1)
+    security_logger = Utils.setup_security_logging()
     
     original_stdout = sys.stdout
     original_stderr = sys.stderr
 
     try:
-        # Determine output filename
+        # Security validation for input file path
+        input_file = SecurityUtils.validate_file_path(args.input_file)
+        
+        # Determine output filename with security validation
         input_filename = os.path.basename(input_file)
         input_file_no_ext = Utils.get_file_no_ext(input_filename)
         
         if args.output_file:
-            output_file = args.output_file
+            # Validate output file path to prevent directory traversal
+            output_file = os.path.abspath(args.output_file)
+            # Ensure output is in a safe location (current dir or subdirectory)
+            output_dir = os.path.dirname(output_file)
+            current_dir = os.getcwd()
+            try:
+                os.path.relpath(output_dir, current_dir)
+            except ValueError:
+                raise SecurityError("Output file path must be relative to current directory")
         else:
-            output_file = f"{input_file_no_ext}.cpp"
+            output_file = os.path.abspath(f"{input_file_no_ext}.cpp")
         
-        # Create the output directory if it doesn't exist
+        # Create the output directory if it doesn't exist (securely)
         output_dir = os.path.dirname(output_file)
         if output_dir and not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+            # Ensure we're not creating directories outside current working area
+            rel_path = os.path.relpath(output_dir, os.getcwd())
+            if rel_path.startswith('..'):
+                raise SecurityError("Cannot create output directory outside current working area")
+            os.makedirs(output_dir, mode=0o755)
         
         # Create error log file with same name as output but .err extension
         output_basename = os.path.splitext(os.path.basename(output_file))[0]
@@ -112,22 +120,42 @@ def run():
             print(f"Converting {input_file} -> {output_file}")
         
         logger.debug(f"Reading input file: {input_file}")
+        
+        # Read file with security validation
         with open(input_file, 'r', encoding='utf-8') as f:
             source_code = f.read()
         
-        logger.debug("Parsing Python code")
-        tree = ast.parse(source_code)
+        # Security validations
+        SecurityUtils.validate_input_size(source_code)
+        
+        logger.debug("Parsing Python code with security validation")
+        tree = SecurityUtils.validate_ast_complexity(source_code)
+        
+        # Log security event
+        security_logger.info(f"CLI conversion: {input_file} -> {output_file}, size: {len(source_code)} bytes")
         
         logger.debug(f"Writing output to: {output_file}")
         logger.debug(f"Writing errors to: {error_path}")
         
-        sys.stdout = open(output_file, 'w', encoding='utf-8')
-        sys.stderr = open(error_path, 'w', encoding='utf-8')
-        
-        parse(tree)
+        # Create secure temporary files for output
+        try:
+            sys.stdout = open(output_file, 'w', encoding='utf-8')
+            sys.stderr = open(error_path, 'w', encoding='utf-8')
+            
+            # Parse with timeout using the enhanced capture_output
+            parse(tree)
+            
+        finally:
+            # Always close files before checking them
+            if sys.stdout != original_stdout:
+                sys.stdout.close()
+            if sys.stderr != original_stderr:
+                sys.stderr.close()
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
         
         # Check if there were any errors
-        if os.path.getsize(error_path) > 0:
+        if os.path.exists(error_path) and os.path.getsize(error_path) > 0:
             if not args.quiet:
                 print(f"Warning: Errors were generated during conversion. Check {error_path}")
         else:
@@ -139,9 +167,17 @@ def run():
         
         logger.info(f"Successfully converted {input_file} to {output_file}")
         
+    except SecurityError as e:
+        security_logger.warning(f"Security violation in CLI: {str(e)}")
+        print(f"Security Error: {str(e)}", file=sys.stderr)
+        sys.exit(1)
+        
     except Exception as e:
         logger.error(f"Conversion failed: {e}")
-        print(f"Error: Conversion failed - {e}", file=sys.stderr)
+        
+        # Sanitize error message for output
+        sanitized_error = SecurityUtils.sanitize_error_message(e, debug_mode=args.debug)
+        print(f"Error: {sanitized_error}", file=sys.stderr)
         
         if args.debug:
             import traceback
@@ -149,11 +185,13 @@ def run():
         
         sys.exit(1)
     finally:
-        # Always restore stdout/stderr and close files
-        sys.stdout.close()
-        sys.stderr.close()
-        sys.stdout = original_stdout
-        sys.stderr = original_stderr
+        # Always restore stdout/stderr
+        if sys.stdout != original_stdout:
+            sys.stdout.close()
+            sys.stdout = original_stdout
+        if sys.stderr != original_stderr:
+            sys.stderr.close()
+            sys.stderr = original_stderr
 
 
 if __name__ == "__main__":

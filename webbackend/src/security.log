@@ -1,0 +1,3 @@
+2025-07-02 00:54:02 - SECURITY - INFO - Conversion request from 127.0.0.1, code size: 14 bytes
+2025-07-02 00:54:09 - SECURITY - WARNING - Security violation from 127.0.0.1: Code complexity exceeds limit (4001 > 1000 nodes)
+2025-07-02 00:54:16 - SECURITY - INFO - Conversion request from 127.0.0.1, code size: 5 bytes
