@@ -1,7 +1,7 @@
 import './App.css';
 import { FuncTab } from './components/functab/functab';
 import { MyEditor } from './components/myeditor/myeditor';
-import { SpeedInsights } from '@vercel/speed-insights/next';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 import { useState } from 'react';
 
