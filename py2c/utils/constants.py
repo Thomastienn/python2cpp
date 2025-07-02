@@ -22,12 +22,7 @@ SECURITY_CONFIG = {
     'FILE_READ_TIMEOUT': 10,      # 10 seconds max for file reading
     
     # CORS configuration
-    'ALLOWED_ORIGINS': [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000', 
-        'https://python2cpp.onrender.com',
-        'https://thomastienn.github.io'
-    ],
+    'ALLOWED_ORIGINS': ['*'],  # Allow all origins for public API
     
     # Content Security Policy
     'CSP_HEADER': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
