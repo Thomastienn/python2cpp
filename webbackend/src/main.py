@@ -88,17 +88,9 @@ async def check_abuse_tracking(request: Request, call_next):
 @limiter.limit(SECURITY_CONFIG['API_RATE_LIMIT'])
 async def root(request: Request):
     """
-    Default route
+    Root endpoint to check API status.
     """
     return {"message": "Welcome to the Python to C++ converter API!", "version": "1.0.0"}
-
-@app.get("/ping")
-@limiter.limit(SECURITY_CONFIG['API_RATE_LIMIT'])
-async def health(request: Request):
-    """
-    Route to check if the API is running
-    """
-    return {"status": "ok", "timestamp": time.time()}
 
 @app.post("/convert")
 @limiter.limit(SECURITY_CONFIG['API_RATE_LIMIT'])
