@@ -1,15 +1,23 @@
 import ast
 import traceback
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from py2c.commands.parser import parse
 from py2c.utils.utils import Utils
 from structures import CodeRequest
 
 app = FastAPI()
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,14 +29,16 @@ app.add_middleware(
 
 
 @app.get("/")
-async def root():
+@limiter.limit("10/minute")
+async def root(request: Request):
     """
     Root endpoint to check if the server is running.
     """
     return {"message": "Welcome to the Python to C++ converter API!"}
 
 @app.post("/convert")
-async def convert(req: CodeRequest):
+@limiter.limit("10/minute")
+async def convert(request: Request, req: CodeRequest):
     """
     Convert Python code to Cpp.
     """
