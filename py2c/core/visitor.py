@@ -501,6 +501,8 @@ class ReprVisitor():
         return f"{{{', '.join(self.visit(el, new_ctx) for el in node.elts)}}}"
 
     def visit_UnaryOp(self, node: ast.UnaryOp, repr_ctx: ReprVisitContext):
+        if repr_ctx.return_type:
+            return self.visit(node.operand, repr_ctx)
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
             parser_ctx=repr_ctx.parser_ctx,

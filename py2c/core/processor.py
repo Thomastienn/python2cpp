@@ -36,6 +36,8 @@ class ExprParser:
         self.logger = setup_logger("py2cpp.processor")
 
     def should_scan_func(self, node: ast.AST, visit_ctx: VisitContext):
+        if isinstance(node, ast.Call) and isinstance(node.func,ast.Name):
+            print(node.func.id, visit_ctx.scope)
         return isinstance(node, ast.Call) and \
             isinstance(node.func, ast.Name) and node.func.id in self.linter.funcs and \
             (self.linter.funcs[node.func.id].return_pytype is None) and \
