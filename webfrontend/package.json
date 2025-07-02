@@ -12,6 +12,7 @@
     },
     "dependencies": {
         "@monaco-editor/react": "^4.7.0",
+        "@vercel/analytics": "^1.5.0",
         "@vercel/speed-insights": "^1.2.0",
         "prismjs": "^1.30.0",
         "react": "^19.1.0",
