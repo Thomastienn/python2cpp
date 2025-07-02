@@ -7,13 +7,13 @@ using namespace std;"""
 # Security Configuration
 SECURITY_CONFIG = {
     # Input validation limits
-    'MAX_INPUT_SIZE': 10 * 1024,  # 10KB max Python code input
+    'MAX_INPUT_SIZE': 30 * 1024,  # 30KB max Python code input
     'MAX_AST_NODES': 1000,        # Maximum AST nodes to prevent resource exhaustion
     'MAX_FILE_SIZE': 50 * 1024,   # 50KB max file upload size
     'MAX_UPLOAD_FILES': 1,        # Maximum number of files in upload
     
     # Rate limiting
-    'API_RATE_LIMIT': '3/minute',  # Reduced from 10/minute
+    'API_RATE_LIMIT': '30/minute',  # 30 requests per minute
     'RATE_LIMIT_ABUSE_THRESHOLD': 5,  # Strikes before longer ban
     'RATE_LIMIT_BAN_DURATION': 300,   # 5 minutes ban for abuse
     

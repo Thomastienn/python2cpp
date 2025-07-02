@@ -12,10 +12,17 @@ export interface ConvertCodeResponse {
 
 // Security configuration
 const SECURITY_CONFIG = {
-    MAX_INPUT_SIZE: 10 * 1024, // 10KB max Python code input
-    MAX_FILE_SIZE: 50 * 1024,  // 50KB max file upload size
+    MAX_INPUT_SIZE: 30 * 1024, // 30KB max Python code input
+    MAX_FILE_SIZE: 50 * 1024, // 50KB max file upload size
     ALLOWED_FILE_TYPES: ['.py'],
-    DANGEROUS_IMPORTS: ['os', 'sys', 'subprocess', 'eval', 'exec', '__import__'],
+    DANGEROUS_IMPORTS: [
+        'os',
+        'sys',
+        'subprocess',
+        'eval',
+        'exec',
+        '__import__',
+    ],
 };
 
 // Security validation functions
@@ -24,7 +31,9 @@ const validateInputSize = (content: string): boolean => {
 };
 
 const validateFileType = (fileName: string): boolean => {
-    const extension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    const extension = fileName
+        .toLowerCase()
+        .substring(fileName.lastIndexOf('.'));
     return SECURITY_CONFIG.ALLOWED_FILE_TYPES.includes(extension);
 };
 
@@ -50,17 +59,13 @@ const validatePythonCode = (code: string): string | null => {
 
 const sanitizeErrorMessage = (error: string): string => {
     // Remove potentially sensitive information from error messages
-    const sensitivePatterns = [
-        /File ".*?"/g,
-        /line \d+/g,
-        /Traceback.*?:/g,
-    ];
-    
+    const sensitivePatterns = [/File ".*?"/g, /line \d+/g, /Traceback.*?:/g];
+
     let sanitized = error;
-    sensitivePatterns.forEach(pattern => {
+    sensitivePatterns.forEach((pattern) => {
         sanitized = sanitized.replace(pattern, '[REDACTED]');
     });
-    
+
     return sanitized;
 };
 
@@ -74,30 +79,32 @@ export function App() {
 
     const convertPythonToCpp = async () => {
         console.log('Converting Python to C++...');
-        
+
         // Client-side security validations
         if (!pyCode.trim()) {
             setCppCode('// ERROR: Python code cannot be empty');
             return;
         }
-        
+
         if (!validateInputSize(pyCode)) {
-            setCppCode(`// ERROR: Code size exceeds maximum limit of ${SECURITY_CONFIG.MAX_INPUT_SIZE / 1024}KB`);
+            setCppCode(
+                `// ERROR: Code size exceeds maximum limit of ${SECURITY_CONFIG.MAX_INPUT_SIZE / 1024}KB`,
+            );
             return;
         }
-        
+
         const codeValidationError = validatePythonCode(pyCode);
         if (codeValidationError) {
             setCppCode(`// ERROR: ${codeValidationError}`);
             return;
         }
-        
+
         setPending(true);
-        
+
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-            
+
             const response = await fetch(
                 'https://python2cpp.onrender.com/convert',
                 {
@@ -111,46 +118,48 @@ export function App() {
                     signal: controller.signal,
                 },
             );
-            
+
             clearTimeout(timeoutId);
             const data: ConvertCodeResponse = await response.json();
-            
+
             if (response.status !== 200) {
                 let errorMessage = '// ERROR: Conversion failed\n';
-                
+
                 if (response.status === 429) {
-                    errorMessage += '// Rate limit exceeded. Please wait before trying again.\n';
+                    errorMessage +=
+                        '// Rate limit exceeded. Please wait before trying again.\n';
                 } else if (response.status === 400) {
                     errorMessage += `// Input validation error: ${data.detail || 'Invalid input'}\n`;
                 } else if (response.status === 408) {
-                    errorMessage += '// Request timeout: Code processing took too long\n';
+                    errorMessage +=
+                        '// Request timeout: Code processing took too long\n';
                 } else {
                     errorMessage += `// Server error (${response.status})\n`;
                 }
-                
+
                 if (data.detail) {
                     // Sanitize error message before displaying
                     const sanitizedDetail = sanitizeErrorMessage(data.detail);
                     errorMessage += `// Details: ${sanitizedDetail}`;
                 }
-                
+
                 setCppCode(errorMessage);
             } else {
                 setCppCode(
-                    data.code ||
-                        '// ERROR: No code returned from server',
+                    data.code || '// ERROR: No code returned from server',
                 );
                 console.log('Conversion complete!');
             }
         } catch (error) {
             console.error('Error during conversion:', error);
-            
+
             let errorMessage = '// ERROR: Failed to convert Python to C++\n';
             if (error instanceof Error) {
                 if (error.name === 'AbortError') {
                     errorMessage += '// Request timed out after 30 seconds\n';
                 } else if (error.message.includes('fetch')) {
-                    errorMessage += '// Network error - please check your connection\n';
+                    errorMessage +=
+                        '// Network error - please check your connection\n';
                 } else {
                     errorMessage += '// Unexpected error occurred\n';
                 }
@@ -158,7 +167,7 @@ export function App() {
                 errorMessage += '// Unknown error occurred\n';
             }
             errorMessage += '// Check console for more details';
-            
+
             setCppCode(errorMessage);
         } finally {
             setPending(false);
@@ -180,12 +189,16 @@ export function App() {
 
             // Security validations for file upload
             if (!validateFileType(file.name)) {
-                alert(`Invalid file type. Only ${SECURITY_CONFIG.ALLOWED_FILE_TYPES.join(', ')} files are allowed.`);
+                alert(
+                    `Invalid file type. Only ${SECURITY_CONFIG.ALLOWED_FILE_TYPES.join(', ')} files are allowed.`,
+                );
                 return;
             }
-            
+
             if (!validateFileSize(file)) {
-                alert(`File size exceeds maximum limit of ${SECURITY_CONFIG.MAX_FILE_SIZE / 1024}KB.`);
+                alert(
+                    `File size exceeds maximum limit of ${SECURITY_CONFIG.MAX_FILE_SIZE / 1024}KB.`,
+                );
                 return;
             }
 
@@ -193,28 +206,34 @@ export function App() {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const content = e.target?.result as string;
-                    
+
                     // Validate content size after reading
                     if (!validateInputSize(content)) {
-                        alert(`File content exceeds maximum size limit of ${SECURITY_CONFIG.MAX_INPUT_SIZE / 1024}KB.`);
+                        alert(
+                            `File content exceeds maximum size limit of ${SECURITY_CONFIG.MAX_INPUT_SIZE / 1024}KB.`,
+                        );
                         return;
                     }
-                    
+
                     // Validate Python code
                     const codeValidationError = validatePythonCode(content);
                     if (codeValidationError) {
-                        if (confirm(`Warning: ${codeValidationError}\n\nDo you want to load this file anyway?`)) {
+                        if (
+                            confirm(
+                                `Warning: ${codeValidationError}\n\nDo you want to load this file anyway?`,
+                            )
+                        ) {
                             setPyCode(content);
                         }
                     } else {
                         setPyCode(content);
                     }
                 };
-                
+
                 reader.onerror = () => {
                     alert('Error reading file. Please try again.');
                 };
-                
+
                 reader.readAsText(file);
             } catch (error) {
                 console.error('File upload error:', error);
