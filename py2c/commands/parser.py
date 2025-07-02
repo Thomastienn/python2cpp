@@ -39,9 +39,12 @@ def parse(tree):
 
     # Process the global scope first to know the type of arguments of functions and each type of variables
     # Like pre-processing
-    for i, exp in enumerate(normal_exps):
-        logger.debug("SCAN: %d", i)
-        printer.visit(exp, VisitContext(allow_print=False, is_scanning=True, scope=["global"]))
+    try:
+        for i, exp in enumerate(normal_exps):
+            logger.debug("SCAN: %d", i)
+            printer.visit(exp, VisitContext(allow_print=False, is_scanning=True, scope=["global"]))
+    except Exception as e:
+        raise Exception(f"Error while scanning the AST: {e}")
 
     # print(printer.linter.funcs, file=sys.stderr)
     # JUST A HEADER LIB

@@ -91,7 +91,7 @@ class ExprParser:
             return self.linter.get_attr_type("Unknown", func_node.func.attr)
 
         func_name = func_node.func.id
-        if func_name in self.linter.funcs:
+        if self.should_scan_func(func_node, visit_ctx):
             return self.visit(func_node, visit_ctx)
 
         get_type_ctx = ReprVisitContext(
@@ -392,6 +392,7 @@ class ExprParser:
                             is_scanning = visit_ctx.is_scanning
                         )
                         expected_return_type = self.visit(return_val, new_ctx)
+                        self.linter.funcs[node.name].return_pytype = expected_return_type
                 else:
                     if expected_return_type == "None":
                         repr_ctx = ReprVisitContext(
@@ -401,6 +402,7 @@ class ExprParser:
                             expr_node=node   
                         )
                         expected_return_type = self.repr.visit(return_val, repr_ctx)
+                        self.linter.funcs[node.name].return_pytype = expected_return_type
 
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
@@ -421,7 +423,8 @@ class ExprParser:
             self.visit(expr, new_ctx)
         self.print_line("}", visit_ctx.current_indent)
         
-        self.linter.funcs[node.name].return_pytype = expected_return_type
+        if expected_return_type == "None":
+            self.linter.funcs[node.name].return_pytype = expected_return_type
         return expected_return_type
 
     def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type, node_for: ast.For):
