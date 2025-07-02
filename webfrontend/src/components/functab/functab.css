@@ -16,8 +16,6 @@
     background: var(--glass-bg);
     border-radius: var(--border-radius);
     border: 1px solid var(--glass-border);
-    backdrop-filter: var(--blur-effect);
-    -webkit-backdrop-filter: var(--blur-effect);
 }
 
 @media (max-width: 768px) {
@@ -60,10 +58,7 @@
     border-radius: var(--border-radius);
     cursor: pointer;
     transition: all 0.3s ease;
-
     border: 1px solid var(--glass-border);
-    backdrop-filter: var(--blur-effect);
-    -webkit-backdrop-filter: var(--blur-effect);
 }
 
 .func-btn:disabled {
