@@ -60,13 +60,47 @@ export const MyEditor = ({
             setIsDragOver(false);
 
             const files = Array.from(e.dataTransfer.files);
+            if (files.length > 1) {
+                alert('Please drop only one file at a time.');
+                return;
+            }
+            
             if (files.length > 0) {
                 const file = files[0];
+                
+                // Security validations for drag and drop
+                const allowedTypes = ['.py'];
+                const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+                
+                if (!allowedTypes.includes(fileExtension)) {
+                    alert(`Invalid file type. Only ${allowedTypes.join(', ')} files are allowed.`);
+                    return;
+                }
+                
+                const maxFileSize = 50 * 1024; // 50KB
+                if (file.size > maxFileSize) {
+                    alert(`File size exceeds maximum limit of ${maxFileSize / 1024}KB.`);
+                    return;
+                }
+                
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const content = event.target?.result as string;
+                    
+                    // Validate content size
+                    const maxContentSize = 10 * 1024; // 10KB
+                    if (new Blob([content]).size > maxContentSize) {
+                        alert(`File content exceeds maximum size limit of ${maxContentSize / 1024}KB.`);
+                        return;
+                    }
+                    
                     setCode(content);
                 };
+                
+                reader.onerror = () => {
+                    alert('Error reading file. Please try again.');
+                };
+                
                 reader.readAsText(file);
             }
         }
