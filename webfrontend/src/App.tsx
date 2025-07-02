@@ -1,6 +1,7 @@
 import './App.css';
 import { FuncTab } from './components/functab/functab';
 import { MyEditor } from './components/myeditor/myeditor';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 import { useState } from 'react';
 
@@ -247,6 +248,7 @@ export function App() {
 
     return (
         <div className="main-content">
+            <SpeedInsights />
             {isOpenNoti && (
                 <div className="noti-bar">
                     {' '}
