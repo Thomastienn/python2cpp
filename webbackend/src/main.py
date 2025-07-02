@@ -88,9 +88,17 @@ async def check_abuse_tracking(request: Request, call_next):
 @limiter.limit(SECURITY_CONFIG['API_RATE_LIMIT'])
 async def root(request: Request):
     """
-    Root endpoint to check if the server is running.
+    Default route
     """
     return {"message": "Welcome to the Python to C++ converter API!", "version": "1.0.0"}
+
+@app.get("/ping")
+@limiter.limit(SECURITY_CONFIG['API_RATE_LIMIT'])
+async def health(request: Request):
+    """
+    Route to check if the API is running
+    """
+    return {"status": "ok", "timestamp": time.time()}
 
 @app.post("/convert")
 @limiter.limit(SECURITY_CONFIG['API_RATE_LIMIT'])
@@ -131,3 +139,5 @@ async def convert(request: Request, req: CodeRequest):
         # Return sanitized error message
         sanitized_error = SecurityUtils.sanitize_error_message(e, debug_mode=False)
         raise HTTPException(status_code=500, detail=sanitized_error)
+
+
