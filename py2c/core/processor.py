@@ -86,30 +86,6 @@ class ExprParser:
         self.logger.error("NOT IMPLEMENTED: %s", node)
         return
 
-    def find_type_func(self, func_node, visit_ctx: VisitContext):
-        if isinstance(func_node.func, ast.Attribute):
-            return self.linter.get_attr_type("Unknown", func_node.func.attr)
-
-        func_name = func_node.func.id
-        if self.should_scan_func(func_node, visit_ctx):
-            return self.visit(func_node, visit_ctx)
-
-        get_type_ctx = ReprVisitContext(
-            processor=self,
-            return_type=True,
-            parser_ctx=visit_ctx,
-            expr_node=func_node
-        )
-        if func_name == "list":
-            types_inside = []
-            for arg in func_node.args:
-                type_ = self.repr.visit(arg, get_type_ctx)
-                types_inside.append(type_)
-
-            return ["list"] + types_inside
-
-        return self.repr.get_type_from_pyfunction(func_node, get_type_ctx)
-
     def set_type(self, name, scope):
         if self.allow_print:
             self.linter.set_has_type(name, scope)
@@ -133,9 +109,8 @@ class ExprParser:
                     return True
                 except KeyError:
                     return False
-            
+
             return self.linter.does_has_type(name, scope=scope)
-            
 
         targets = node.targets
         value = node.value
@@ -156,7 +131,12 @@ class ExprParser:
         type_var_err = None
         try:
             if isinstance(value, ast.Call):
-                type_name_val = self.find_type_func(value, visit_ctx)
+                type_name_val = self.repr.visit(value, ReprVisitContext(
+                    processor=self,
+                    return_type=True,
+                    parser_ctx=visit_ctx,
+                    expr_node=node
+                ))
             else:
                 repr_ctx = ReprVisitContext(
                     return_type=True,
@@ -177,12 +157,12 @@ class ExprParser:
             expr_node=node
         )
         value_str = self.repr.visit(value, repr_ctx)
-            
+
         for target in targets:
             repr_ctx = ReprVisitContext(
                 processor=self,
-                parser_ctx = visit_ctx,
-                expr_node = node
+                parser_ctx=visit_ctx,
+                expr_node=node
             )
             target_str = self.repr.visit(target, repr_ctx)
 
@@ -245,9 +225,9 @@ class ExprParser:
         return "None"
 
     def visit_AugAssign(self, node: ast.AugAssign, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.value, visit_ctx):
-                self.visit(node.value, visit_ctx)
+        # if visit_ctx.is_scanning:
+        #     if self.should_scan_func(node.value, visit_ctx):
+        #         self.visit(node.value, visit_ctx)
 
         # self.print_line("AUG ASSIGN: ", current_indent, end="")
         repr_ctx = ReprVisitContext(
@@ -262,10 +242,10 @@ class ExprParser:
         return "None"
 
     def visit_Call(self, node: ast.Call, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            for arg in node.args:
-                if self.should_scan_func(arg, visit_ctx):
-                    self.visit(arg, visit_ctx)
+        # if visit_ctx.is_scanning:
+        #     for arg in node.args:
+        #         if self.should_scan_func(arg, visit_ctx):
+        #             self.visit(arg, visit_ctx)
 
         repr_ctx = ReprVisitContext(
             processor=self,
@@ -442,10 +422,10 @@ class ExprParser:
             PARAMS
             node: ast.Call which is calling range() func
         """
-        if visit_ctx.is_scanning:
-            for arg in node.args:
-                if self.should_scan_func(arg, visit_ctx):
-                    self.visit(arg, visit_ctx)
+        # if visit_ctx.is_scanning:
+        #     for arg in node.args:
+        #         if self.should_scan_func(arg, visit_ctx):
+        #             self.visit(arg, visit_ctx)
         if save_type:
             # Create the for loop scope
             for_scope_name = f"for_{id(node_for)}"
@@ -478,10 +458,6 @@ class ExprParser:
         self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
 
     def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type, node_for: ast.For):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node, visit_ctx):
-                self.visit(node, visit_ctx)
-
         new_ctx = visit_ctx.copy()
         new_ctx.scope = new_ctx.scope[:-1]
         repr_ctx = ReprVisitContext(
@@ -551,10 +527,6 @@ class ExprParser:
         self.print_line("}", visit_ctx.current_indent)
 
     def visit_If(self, node: ast.If, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.test, visit_ctx):
-                self.visit(node.test, visit_ctx)
-                
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx = visit_ctx,
@@ -586,10 +558,6 @@ class ExprParser:
         # self.print_line("END", current_indent)
 
     def visit_Return(self, node: ast.Return, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.value, visit_ctx):
-                self.visit(node.value, visit_ctx)
-                
         if node.value is None:
             self.print_line("return;", visit_ctx.current_indent)
             return
@@ -601,10 +569,6 @@ class ExprParser:
         self.print_line(f"return {self.repr.visit(node.value, repr_ctx)};", visit_ctx.current_indent)
 
     def visit_While(self, node: ast.While, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.test, visit_ctx):
-                self.visit(node.test, visit_ctx)
-
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx = visit_ctx,
@@ -622,14 +586,6 @@ class ExprParser:
         self.print_line("}", visit_ctx.current_indent)
 
     def visit_Expr(self, node: ast.Expr, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.value, visit_ctx):
-                self.visit(node.value, visit_ctx)
-            if isinstance(node.value, ast.Call):
-                for arg in node.value.args:
-                    if self.should_scan_func(arg, visit_ctx):
-                        self.visit(arg, visit_ctx)
-                
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx=visit_ctx,

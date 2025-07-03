@@ -297,6 +297,10 @@ class ReprVisitor():
             
     # TODO: This shouldn't be here, we will move it back to processor.py
     def visit_Call(self, node: ast.Call, repr_ctx: ReprVisitContext):
+        if repr_ctx.parser_ctx.is_scanning:
+            if repr_ctx.processor.should_scan_func(node, repr_ctx.parser_ctx):
+                repr_ctx.processor.visit(node, repr_ctx.parser_ctx)
+
         if repr_ctx.return_type:
             if isinstance(node.func, ast.Name):
                 if node.func.id in self.linter.funcs:

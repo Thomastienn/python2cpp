@@ -10,6 +10,7 @@ if __name__ == "__main__":
     cur_path = os.path.dirname(os.path.abspath(__file__))
     ROOT = cur_path[:cur_path.rfind("py2cpp") + len("py2cpp")]
 
+    total_files = 0
     for file in os.listdir(f"{ROOT}/test_pythons"):
         if file.endswith(".py"):
             print(f"Executing {file}...")
@@ -20,8 +21,9 @@ if __name__ == "__main__":
             )
             if result.returncode != 0:
                 raise Exception(f"Error running {file}: {result.stderr}")
+            total_files += 1
             print(f"Output of {file}:\n{result.stdout}")
-    
-    print(f"All Python files in {output_dir} executed successfully.")
-                
-            
+
+    print(f"All {total_files} Python files in {output_dir} executed successfully.")
+
+
