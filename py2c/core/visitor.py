@@ -287,6 +287,11 @@ class ReprVisitor():
         if func_name == "chr":
             return f"static_cast<char>({self.visit(node.args[0], new_ctx)})"
 
+        if func_name == "reversed":
+            type_ = self.visit(node.args[0], get_type_ctx)
+            cpp_type_ = self.linter.python_to_cpp_type(type_)
+            return f"{cpp_type_}({self.visit(node.args[0], new_ctx)}.rbegin(), {self.visit(node.args[0], new_ctx)}.rend())"
+
         # This is not a builtin function, so we need to handle it
         return None
             

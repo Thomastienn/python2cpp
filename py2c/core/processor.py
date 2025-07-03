@@ -480,7 +480,8 @@ class ExprParser:
             
         assert end != None, "my badd, end of range should be parsed"
         add_str = f"{var}++" if step == "1" else f"{var} += {step}"
-        self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
+        compare_sign = "<" if step > 0 else ">"
+        self.print_line(f"for (int {var} = {start}; {var} {compare_sign} {end}; {add_str}) {{", visit_ctx.current_indent)
 
     def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type, node_for: ast.For):
         new_ctx = visit_ctx.copy()
