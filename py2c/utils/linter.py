@@ -25,6 +25,12 @@ class Linter:
         "auto": "auto",
         "Unknown": "auto",
     }
+    MAP_VALUE = {
+        "True": "true",
+        "False": "false",
+        "None": "nullptr",
+    }
+
     def __init__(self, funcs: dict[str, Function]):
         self.typed_vars = {
             "global": {},
@@ -298,3 +304,26 @@ class Linter:
             return "float"
 
         return pytype_left
+
+    def get_type_from_annotations(self, annotations: ast.AST) -> str | list[str]:
+        """
+        Extract type information from function annotations.
+        """
+        if isinstance(annotations, (ast.Constant, ast.List)):
+            raise ValueError(f"Annotations shouldn't have {type(annotations)}, got {annotations.value}")
+
+        if isinstance(annotations, ast.Name):
+            return annotations.id
+        if isinstance(annotations, ast.Subscript):
+            base = annotations.value
+            if not isinstance(base, ast.Name):
+                raise ValueError(f"Subscript base should be a Name, got {type(base)}")
+            base_type = base.id
+            inside_type = self.get_type_from_annotations(annotations.slice)
+            return [base_type] + ([inside_type] if isinstance(inside_type, str) else inside_type)
+            
+        if isinstance(annotations, ast.Tuple):
+            return [self.get_type_from_annotations(elt) for elt in annotations.elts]
+        
+        
+        raise NotImplementedError(f"Annotation type {type(annotations)} not implemented")

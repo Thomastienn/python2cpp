@@ -94,23 +94,48 @@ class ExprParser:
         if self.allow_print:
             self.linter.unset_has_type(name, scope)
 
-    def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
-        def already_declared(name, scope):
-            # TODO: Check if we want to bubble up in the scope
-            # Sometimes it's ambiguous
+    def already_declared(self, name, visit_ctx: VisitContext):
+        # TODO: Check if we want to bubble up in the scope
+        # Sometimes it's ambiguous
 
-            if name is None:
+        if name is None:
+            return False
+
+        # Check if variable has been actually declared/printed in current context or parent scopes
+        if visit_ctx.is_scanning:
+            try:
+                self.linter.get_var_type(name, scope=visit_ctx.scope)
+                return True
+            except KeyError:
                 return False
 
-            # Check if variable has been actually declared/printed in current context or parent scopes
-            if visit_ctx.is_scanning:
-                try:
-                    self.linter.get_var_type(name, scope=scope)
-                    return True
-                except KeyError:
-                    return False
+        return self.linter.does_has_type(name, scope=visit_ctx.scope)
 
-            return self.linter.does_has_type(name, scope=scope)
+    def visit_AnnAssign(self, node: ast.AnnAssign, visit_ctx: VisitContext):
+        """
+        Handle annotated assignments like `a: int = 1`
+        """
+        type_ = self.linter.get_type_from_annotations(node.annotation)
+        target = node.target
+
+        repr_ctx = ReprVisitContext(
+            processor=self,
+            return_type=False,
+            parser_ctx=visit_ctx,
+            expr_node=node
+        )
+
+        target_str = self.repr.visit(target, repr_ctx)
+        value_str = self.repr.visit(node.value, repr_ctx)
+
+        if self.already_declared(target.id, visit_ctx):
+            self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
+        else:
+            self.linter.add_var(target_str, type_, scope=visit_ctx.scope)
+            self.set_type(target_str, visit_ctx.scope)
+            self.print_line(f"{self.linter.python_to_cpp_type(type_)} {target_str} = {value_str};", visit_ctx.current_indent)
+
+    def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
 
         targets = node.targets
         value = node.value
@@ -185,7 +210,7 @@ class ExprParser:
             elif is_unpacking:
                 # Check if all variables in the tuple are already declared
                 target_vars = [var.strip() for var in target_str.split(",")]
-                all_declared = all(already_declared(var, visit_ctx.scope) for var in target_vars)
+                all_declared = all(self.already_declared(var, visit_ctx) for var in target_vars)
                 
                 
                 if all_declared:
@@ -197,12 +222,12 @@ class ExprParser:
                         raise type_var_err
                     # At least one variable is new, declare with auto
                     for target_s in target_vars:
-                        if not already_declared(target_s, visit_ctx.scope):
+                        if not self.already_declared(target_s, visit_ctx):
                             self.linter.add_var(target_s, normalized_type, scope=visit_ctx.scope)
                             self.set_type(target_s, visit_ctx.scope)
                     self.print_line(f"auto [{target_str}] = {value_str};", visit_ctx.current_indent)
-            elif already_declared(target_str, visit_ctx.scope) or \
-                already_declared(name, visit_ctx.scope):
+            elif self.already_declared(target_str, visit_ctx) or \
+                self.already_declared(name, visit_ctx):
                 self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
             else:
                 if type_var_err is not None:
