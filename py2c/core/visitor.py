@@ -150,6 +150,12 @@ class ReprVisitor():
             parser_ctx=repr_ctx.parser_ctx,
             expr_node = repr_ctx.expr_node
         )
+
+        if isinstance(node.op, ast.Mod):
+            template_name = CPPTemplate.CMOD.name
+            Utils.template_uses.add(template_name)
+            return f"{template_name.lower()}({self.visit(node.left, new_ctx)}, {self.visit(node.right, new_ctx)})"
+
         if isinstance(node.op, ast.Pow):
             template_name = CPPTemplate.FASTPOW.name
             Utils.template_uses.add(template_name)

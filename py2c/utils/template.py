@@ -9,6 +9,7 @@ class CPPTemplateReturnType(Enum):
     CINPUT = "str"
     CSPLIT = ["list", "str"]
     CMAP = "auto"
+    CMOD = "int"
 
 class CPPTemplate(Enum):
     FASTPOW = textwrap.dedent("""
@@ -81,6 +82,13 @@ class CPPTemplate(Enum):
         }
 
         return result;
+    }
+    """)
+
+    CMOD = textwrap.dedent("""
+    template <typename T>
+    int cmod(int a, int b) {
+        return (a % b + b) % b;
     }
     """)
 
