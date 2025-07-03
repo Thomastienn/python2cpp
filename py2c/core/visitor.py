@@ -239,6 +239,13 @@ class ReprVisitor():
                 return f"tuple_size<decltype({self.visit(node.args[0], new_ctx)})>::value"
             return f"{self.visit(node.args[0], new_ctx)}.size()"
         if func_name == "print":
+            type_ = self.visit(node.args[0], get_type_ctx)
+            if (len(node.args) == 1 and \
+                    isinstance(type_, list) and \
+                    type_[0] == "list"):
+                template_name: str = CPPTemplate.OVERLOAD_VECTOR_PRINT.name
+                Utils.template_uses.add(template_name)
+
             return f'cout << {" << ".join(self.visit(arg, new_ctx) for arg in node.args)} << "\\n"'
         if func_name == "input":
             template_name: str = CPPTemplate.CINPUT.name
@@ -294,9 +301,14 @@ class ReprVisitor():
             return f"static_cast<char>({self.visit(node.args[0], new_ctx)})"
 
         if func_name == "reversed":
-            type_ = self.visit(node.args[0], get_type_ctx)
-            cpp_type_ = self.linter.python_to_cpp_type(type_)
-            return f"{cpp_type_}({self.visit(node.args[0], new_ctx)}.rbegin(), {self.visit(node.args[0], new_ctx)}.rend())"
+            if isinstance(node.args[0], ast.Name):
+                type_ = self.visit(node.args[0], get_type_ctx)
+                cpp_type_ = self.linter.python_to_cpp_type(type_)
+                return f"{cpp_type_}({self.visit(node.args[0], new_ctx)}.rbegin(), {self.visit(node.args[0], new_ctx)}.rend())"
+            else:
+                template_name: str = CPPTemplate.CREV.name
+                Utils.template_uses.add(template_name)
+                return f"{template_name.lower()}({self.visit(node.args[0], new_ctx)})"
 
         # This is not a builtin function, so we need to handle it
         return None
@@ -508,7 +520,7 @@ class ReprVisitor():
             parser_ctx=repr_ctx.parser_ctx,
             expr_node = repr_ctx.expr_node
         )
-        return f"{{{', '.join(self.visit(el, new_ctx) for el in node.elts)}}}"
+        return f"vector{{{', '.join(self.visit(el, new_ctx) for el in node.elts)}}}"
 
     def visit_UnaryOp(self, node: ast.UnaryOp, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
