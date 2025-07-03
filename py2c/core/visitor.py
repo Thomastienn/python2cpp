@@ -13,11 +13,6 @@ from py2c.utils.logger import setup_logger
 
 
 class ReprVisitor():
-    MAP_VALUE = {
-        "True": "true",
-        "False": "false",
-        "None": "nullptr",
-    }
     def __init__(self, linter: Linter):
         self.linter = linter
         self.logger = setup_logger("py2cpp.visitor")
@@ -61,8 +56,8 @@ class ReprVisitor():
         if repr_ctx.return_type:
             return type(node.value).__name__
         node_repr = repr(node.value)
-        if node_repr in self.MAP_VALUE:
-            return self.MAP_VALUE[node_repr]
+        if node_repr in Linter.MAP_VALUE:
+            return Linter.MAP_VALUE[node_repr]
         return node_repr.replace("\'", "\"")
 
     def visit_Name(self, node: ast.Name, repr_ctx: ReprVisitContext):
@@ -297,6 +292,10 @@ class ReprVisitor():
             
     # TODO: This shouldn't be here, we will move it back to processor.py
     def visit_Call(self, node: ast.Call, repr_ctx: ReprVisitContext):
+        if repr_ctx.parser_ctx.is_scanning:
+            if repr_ctx.processor.should_scan_func(node, repr_ctx.parser_ctx):
+                repr_ctx.processor.visit(node, repr_ctx.parser_ctx)
+
         if repr_ctx.return_type:
             if isinstance(node.func, ast.Name):
                 if node.func.id in self.linter.funcs:

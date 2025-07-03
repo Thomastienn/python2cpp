@@ -86,30 +86,6 @@ class ExprParser:
         self.logger.error("NOT IMPLEMENTED: %s", node)
         return
 
-    def find_type_func(self, func_node, visit_ctx: VisitContext):
-        if isinstance(func_node.func, ast.Attribute):
-            return self.linter.get_attr_type("Unknown", func_node.func.attr)
-
-        func_name = func_node.func.id
-        if func_name in self.linter.funcs:
-            return self.visit(func_node, visit_ctx)
-
-        get_type_ctx = ReprVisitContext(
-            processor=self,
-            return_type=True,
-            parser_ctx=visit_ctx,
-            expr_node=func_node
-        )
-        if func_name == "list":
-            types_inside = []
-            for arg in func_node.args:
-                type_ = self.repr.visit(arg, get_type_ctx)
-                types_inside.append(type_)
-
-            return ["list"] + types_inside
-
-        return self.repr.get_type_from_pyfunction(func_node, get_type_ctx)
-
     def set_type(self, name, scope):
         if self.allow_print:
             self.linter.set_has_type(name, scope)
@@ -118,48 +94,52 @@ class ExprParser:
         if self.allow_print:
             self.linter.unset_has_type(name, scope)
 
-    def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
-        def already_declared(name, scope):
-            # TODO: Check if we want to bubble up in the scope
-            # Sometimes it's ambiguous
-            
-            if name is None:
+    def already_declared(self, name, visit_ctx: VisitContext):
+        # TODO: Check if we want to bubble up in the scope
+        # Sometimes it's ambiguous
+
+        if name is None:
+            return False
+
+        # Check if variable has been actually declared/printed in current context or parent scopes
+        if visit_ctx.is_scanning:
+            try:
+                self.linter.get_var_type(name, scope=visit_ctx.scope)
+                return True
+            except KeyError:
                 return False
 
-            # Check if variable has been actually declared/printed in current context or parent scopes
-            return self.linter.does_has_type(name, scope=scope)
-        
+        return self.linter.does_has_type(name, scope=visit_ctx.scope)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign, visit_ctx: VisitContext):
+        """
+        Handle annotated assignments like `a: int = 1`
+        """
+        type_ = self.linter.get_type_from_annotations(node.annotation)
+        target = node.target
+
+        repr_ctx = ReprVisitContext(
+            processor=self,
+            return_type=False,
+            parser_ctx=visit_ctx,
+            expr_node=node
+        )
+
+        target_str = self.repr.visit(target, repr_ctx)
+        value_str = self.repr.visit(node.value, repr_ctx)
+
+        if self.already_declared(target.id, visit_ctx):
+            self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
+        else:
+            self.linter.add_var(target_str, type_, scope=visit_ctx.scope)
+            self.set_type(target_str, visit_ctx.scope)
+            self.print_line(f"{self.linter.python_to_cpp_type(type_)} {target_str} = {value_str};", visit_ctx.current_indent)
+
+    def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
+
         targets = node.targets
         value = node.value
-        
-        if isinstance(value, ast.Call):
-            type_name_val = self.find_type_func(value, visit_ctx)
-        else:
-            repr_ctx = ReprVisitContext(
-                return_type=True,
-                processor=self,
-                parser_ctx = visit_ctx,
-                expr_node = node
-            )
-            type_name_val = self.repr.visit(value, repr_ctx) 
 
-        get_name_ctx = ReprVisitContext(
-            processor=self,
-            parser_ctx = visit_ctx,
-            expr_node = node
-        )
-        repr_ctx = ReprVisitContext(
-            return_type=False,
-            processor=self,
-            parser_ctx=visit_ctx,
-            pytype_assign_from = type_name_val,
-            expr_node = node
-        )
-        value_str = self.repr.visit(value, repr_ctx)
-
-
-        cpp_type = self.linter.python_to_cpp_type(type_name_val)
-        
         # Normalize complex type structures for Variable storage
         # The Variable class expects simple list[str] | str, not nested complex structures
         def normalize_type_for_storage(type_val):
@@ -172,14 +152,42 @@ class ExprParser:
                 # For simple lists like ["list", "str"], keep as is
                 return type_val
             return type_val
-        
-        normalized_type = normalize_type_for_storage(type_name_val)
-        
+
+        type_var_err = None
+        try:
+            if isinstance(value, ast.Call):
+                type_name_val = self.repr.visit(value, ReprVisitContext(
+                    processor=self,
+                    return_type=True,
+                    parser_ctx=visit_ctx,
+                    expr_node=node
+                ))
+            else:
+                repr_ctx = ReprVisitContext(
+                    return_type=True,
+                    processor=self,
+                    parser_ctx=visit_ctx,
+                    expr_node=node
+                )
+                type_name_val = self.repr.visit(value, repr_ctx)
+            cpp_type = self.linter.python_to_cpp_type(type_name_val)
+            normalized_type = normalize_type_for_storage(type_name_val)
+        except Exception as e:
+            type_var_err = e
+
+        repr_ctx = ReprVisitContext(
+            return_type=False,
+            processor=self,
+            parser_ctx=visit_ctx,
+            expr_node=node
+        )
+        value_str = self.repr.visit(value, repr_ctx)
+
         for target in targets:
             repr_ctx = ReprVisitContext(
                 processor=self,
-                parser_ctx = visit_ctx,
-                expr_node = node
+                parser_ctx=visit_ctx,
+                expr_node=node
             )
             target_str = self.repr.visit(target, repr_ctx)
 
@@ -202,23 +210,29 @@ class ExprParser:
             elif is_unpacking:
                 # Check if all variables in the tuple are already declared
                 target_vars = [var.strip() for var in target_str.split(",")]
-                all_declared = all(already_declared(var, visit_ctx.scope) for var in target_vars)
+                all_declared = all(self.already_declared(var, visit_ctx) for var in target_vars)
                 
                 
                 if all_declared:
                     # All variables are already declared, use tie for assignment
                     self.print_line(f"tie({target_str}) = {value_str};", visit_ctx.current_indent)
                 else:
+                    # Theres an error with the type
+                    if type_var_err is not None:
+                        raise type_var_err
                     # At least one variable is new, declare with auto
                     for target_s in target_vars:
-                        if not already_declared(target_s, visit_ctx.scope):
+                        if not self.already_declared(target_s, visit_ctx):
                             self.linter.add_var(target_s, normalized_type, scope=visit_ctx.scope)
                             self.set_type(target_s, visit_ctx.scope)
                     self.print_line(f"auto [{target_str}] = {value_str};", visit_ctx.current_indent)
-            elif already_declared(target_str, visit_ctx.scope) or \
-                already_declared(name, visit_ctx.scope):
+            elif self.already_declared(target_str, visit_ctx) or \
+                self.already_declared(name, visit_ctx):
                 self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
             else:
+                if type_var_err is not None:
+                    print(target_str, value_str)
+                    raise type_var_err
                 # Single variable, not declared yet
                 self.linter.add_var(target_str, normalized_type, scope=visit_ctx.scope)
                 self.set_type(target_str, visit_ctx.scope)
@@ -236,9 +250,9 @@ class ExprParser:
         return "None"
 
     def visit_AugAssign(self, node: ast.AugAssign, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.value, visit_ctx):
-                self.visit(node.value, visit_ctx)
+        # if visit_ctx.is_scanning:
+        #     if self.should_scan_func(node.value, visit_ctx):
+        #         self.visit(node.value, visit_ctx)
 
         # self.print_line("AUG ASSIGN: ", current_indent, end="")
         repr_ctx = ReprVisitContext(
@@ -253,10 +267,10 @@ class ExprParser:
         return "None"
 
     def visit_Call(self, node: ast.Call, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            for arg in node.args:
-                if self.should_scan_func(arg, visit_ctx):
-                    self.visit(arg, visit_ctx)
+        # if visit_ctx.is_scanning:
+        #     for arg in node.args:
+        #         if self.should_scan_func(arg, visit_ctx):
+        #             self.visit(arg, visit_ctx)
 
         repr_ctx = ReprVisitContext(
             processor=self,
@@ -392,6 +406,7 @@ class ExprParser:
                             is_scanning = visit_ctx.is_scanning
                         )
                         expected_return_type = self.visit(return_val, new_ctx)
+                        self.linter.funcs[node.name].return_pytype = expected_return_type
                 else:
                     if expected_return_type == "None":
                         repr_ctx = ReprVisitContext(
@@ -401,6 +416,7 @@ class ExprParser:
                             expr_node=node   
                         )
                         expected_return_type = self.repr.visit(return_val, repr_ctx)
+                        self.linter.funcs[node.name].return_pytype = expected_return_type
 
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
@@ -421,7 +437,8 @@ class ExprParser:
             self.visit(expr, new_ctx)
         self.print_line("}", visit_ctx.current_indent)
         
-        self.linter.funcs[node.name].return_pytype = expected_return_type
+        if expected_return_type == "None":
+            self.linter.funcs[node.name].return_pytype = expected_return_type
         return expected_return_type
 
     def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type, node_for: ast.For):
@@ -430,10 +447,10 @@ class ExprParser:
             PARAMS
             node: ast.Call which is calling range() func
         """
-        if visit_ctx.is_scanning:
-            for arg in node.args:
-                if self.should_scan_func(arg, visit_ctx):
-                    self.visit(arg, visit_ctx)
+        # if visit_ctx.is_scanning:
+        #     for arg in node.args:
+        #         if self.should_scan_func(arg, visit_ctx):
+        #             self.visit(arg, visit_ctx)
         if save_type:
             # Create the for loop scope
             for_scope_name = f"for_{id(node_for)}"
@@ -466,10 +483,6 @@ class ExprParser:
         self.print_line(f"for (int {var} = {start}; {var} < {end}; {add_str}) {{", visit_ctx.current_indent)
 
     def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type, node_for: ast.For):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node, visit_ctx):
-                self.visit(node, visit_ctx)
-
         new_ctx = visit_ctx.copy()
         new_ctx.scope = new_ctx.scope[:-1]
         repr_ctx = ReprVisitContext(
@@ -539,10 +552,6 @@ class ExprParser:
         self.print_line("}", visit_ctx.current_indent)
 
     def visit_If(self, node: ast.If, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.test, visit_ctx):
-                self.visit(node.test, visit_ctx)
-                
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx = visit_ctx,
@@ -574,10 +583,6 @@ class ExprParser:
         # self.print_line("END", current_indent)
 
     def visit_Return(self, node: ast.Return, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.value, visit_ctx):
-                self.visit(node.value, visit_ctx)
-                
         if node.value is None:
             self.print_line("return;", visit_ctx.current_indent)
             return
@@ -589,10 +594,6 @@ class ExprParser:
         self.print_line(f"return {self.repr.visit(node.value, repr_ctx)};", visit_ctx.current_indent)
 
     def visit_While(self, node: ast.While, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.test, visit_ctx):
-                self.visit(node.test, visit_ctx)
-
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx = visit_ctx,
@@ -610,14 +611,6 @@ class ExprParser:
         self.print_line("}", visit_ctx.current_indent)
 
     def visit_Expr(self, node: ast.Expr, visit_ctx: VisitContext):
-        if visit_ctx.is_scanning:
-            if self.should_scan_func(node.value, visit_ctx):
-                self.visit(node.value, visit_ctx)
-            if isinstance(node.value, ast.Call):
-                for arg in node.value.args:
-                    if self.should_scan_func(arg, visit_ctx):
-                        self.visit(arg, visit_ctx)
-                
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx=visit_ctx,
