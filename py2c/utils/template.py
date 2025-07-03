@@ -11,6 +11,7 @@ class CPPTemplateReturnType(Enum):
     CMAP = "auto"
     CMOD = "int"
     CREV = "auto"
+    OVERLOAD_VECTOR_PRINT = "auto"
 
 class CPPTemplate(Enum):
     FASTPOW = textwrap.dedent("""
@@ -103,11 +104,9 @@ class CPPTemplate(Enum):
     OVERLOAD_VECTOR_PRINT = textwrap.dedent("""
     template <typename T>
     ostream& operator<<(ostream& os, const vector<T>& v) {
-        os << "[ ";
         for (const auto& elem : v) {
             os << elem << " ";
         }
-        os << "]";
         return os;
     }
     """)  
