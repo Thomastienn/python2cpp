@@ -122,44 +122,24 @@ class ExprParser:
         def already_declared(name, scope):
             # TODO: Check if we want to bubble up in the scope
             # Sometimes it's ambiguous
-            
+
             if name is None:
                 return False
 
             # Check if variable has been actually declared/printed in current context or parent scopes
+            if visit_ctx.is_scanning:
+                try:
+                    self.linter.get_var_type(name, scope=scope)
+                    return True
+                except KeyError:
+                    return False
+            
             return self.linter.does_has_type(name, scope=scope)
-        
+            
+
         targets = node.targets
         value = node.value
-        
-        if isinstance(value, ast.Call):
-            type_name_val = self.find_type_func(value, visit_ctx)
-        else:
-            repr_ctx = ReprVisitContext(
-                return_type=True,
-                processor=self,
-                parser_ctx = visit_ctx,
-                expr_node = node
-            )
-            type_name_val = self.repr.visit(value, repr_ctx) 
 
-        get_name_ctx = ReprVisitContext(
-            processor=self,
-            parser_ctx = visit_ctx,
-            expr_node = node
-        )
-        repr_ctx = ReprVisitContext(
-            return_type=False,
-            processor=self,
-            parser_ctx=visit_ctx,
-            pytype_assign_from = type_name_val,
-            expr_node = node
-        )
-        value_str = self.repr.visit(value, repr_ctx)
-
-
-        cpp_type = self.linter.python_to_cpp_type(type_name_val)
-        
         # Normalize complex type structures for Variable storage
         # The Variable class expects simple list[str] | str, not nested complex structures
         def normalize_type_for_storage(type_val):
@@ -172,9 +152,32 @@ class ExprParser:
                 # For simple lists like ["list", "str"], keep as is
                 return type_val
             return type_val
-        
-        normalized_type = normalize_type_for_storage(type_name_val)
-        
+
+        type_var_err = None
+        try:
+            if isinstance(value, ast.Call):
+                type_name_val = self.find_type_func(value, visit_ctx)
+            else:
+                repr_ctx = ReprVisitContext(
+                    return_type=True,
+                    processor=self,
+                    parser_ctx=visit_ctx,
+                    expr_node=node
+                )
+                type_name_val = self.repr.visit(value, repr_ctx)
+            cpp_type = self.linter.python_to_cpp_type(type_name_val)
+            normalized_type = normalize_type_for_storage(type_name_val)
+        except Exception as e:
+            type_var_err = e
+
+        repr_ctx = ReprVisitContext(
+            return_type=False,
+            processor=self,
+            parser_ctx=visit_ctx,
+            expr_node=node
+        )
+        value_str = self.repr.visit(value, repr_ctx)
+            
         for target in targets:
             repr_ctx = ReprVisitContext(
                 processor=self,
@@ -209,6 +212,9 @@ class ExprParser:
                     # All variables are already declared, use tie for assignment
                     self.print_line(f"tie({target_str}) = {value_str};", visit_ctx.current_indent)
                 else:
+                    # Theres an error with the type
+                    if type_var_err is not None:
+                        raise type_var_err
                     # At least one variable is new, declare with auto
                     for target_s in target_vars:
                         if not already_declared(target_s, visit_ctx.scope):
@@ -219,6 +225,9 @@ class ExprParser:
                 already_declared(name, visit_ctx.scope):
                 self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
             else:
+                if type_var_err is not None:
+                    print(target_str, value_str)
+                    raise type_var_err
                 # Single variable, not declared yet
                 self.linter.add_var(target_str, normalized_type, scope=visit_ctx.scope)
                 self.set_type(target_str, visit_ctx.scope)
