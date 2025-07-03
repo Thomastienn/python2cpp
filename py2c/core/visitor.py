@@ -503,7 +503,7 @@ class ReprVisitor():
             parser_ctx=repr_ctx.parser_ctx,
             expr_node = repr_ctx.expr_node
         )
-        return f"{{{', '.join(self.visit(el, new_ctx) for el in node.elts)}}}"
+        return f"vector{{{', '.join(self.visit(el, new_ctx) for el in node.elts)}}}"
 
     def visit_UnaryOp(self, node: ast.UnaryOp, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
