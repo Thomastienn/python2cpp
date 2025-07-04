@@ -14,6 +14,7 @@ class Function(BaseModel):
 
 class Variable(BaseModel):
     name: str
+    is_param: bool = False
     pytype: list[str] | str = "Unknown"
     lowest_val: int = 0
     highest_val: int = 100

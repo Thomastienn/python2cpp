@@ -53,7 +53,8 @@ class CPPTemplate(Enum):
     }""")
 
     CINPUT = textwrap.dedent("""
-    string cinput() {
+    string cinput(string prompt = "") {
+        cout << prompt;
         string s;
         getline(cin, s);
         return s;

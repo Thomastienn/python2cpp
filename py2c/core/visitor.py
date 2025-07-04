@@ -8,7 +8,8 @@ from py2c.utils.linter import Linter
 from py2c.utils.utils import Utils
 from py2c.utils.constants import TAB
 from py2c.utils.template import CPPTemplate
-from py2c.core.structure import ReprVisitContext, VisitContext
+from py2c.core.structure import ReprVisitContext, VisitContext, Variable
+from py2c.utils.scope_handler import ScopeHandler
 from py2c.utils.logger import setup_logger
 
 
@@ -63,7 +64,19 @@ class ReprVisitor():
     def visit_Name(self, node: ast.Name, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
             try:
-                return self.linter.get_var_type(node.id, repr_ctx.parser_ctx.scope)
+                var, scope_found = self.linter.get_var(node.id, repr_ctx.parser_ctx.scope, return_scope_found=True)
+                var: Variable
+
+                var_type = var.pytype
+                if repr_ctx.parser_ctx.is_scanning and \
+                    scope_found is not None and \
+                    ScopeHandler.is_in_function_scope(repr_ctx.parser_ctx.scope) and \
+                    (scope_found == "global" or (isinstance(scope_found, list) and scope_found[-1] == "global")) and \
+                    var.is_param is False:
+                    self.linter.set_has_type(node.id, ["global"])
+                    self.linter.actual_global_vars.append(var)
+
+                return var_type
             except KeyError:
                 # During scanning phase, variables might not be defined yet
                 # Return a placeholder type that can be resolved later

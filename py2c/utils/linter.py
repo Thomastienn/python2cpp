@@ -39,8 +39,9 @@ class Linter:
             "global": {},
         }
         self.funcs = funcs
+        self.actual_global_vars = []
 
-    def add_var(self, name, v_type, scope=["global"]):
+    def add_var(self, name, v_type, scope=["global"], **kwargs):
         cur_scope = self.typed_vars
         for s in scope:
             if s not in cur_scope:
@@ -48,7 +49,8 @@ class Linter:
             cur_scope = cur_scope[s]
         new_var = Variable(
             name=name,
-            pytype=v_type
+            pytype=v_type,
+            **kwargs
         )
         cur_scope[name] = new_var
 
@@ -129,16 +131,7 @@ class Linter:
         return_type += ">" * (n+1)
         return return_type
 
-    def get_var_type(self, name, scope=["global"]) -> str | list[str]:
-        """
-            Get the type of a variable by going from innermost to outermost
-            params:
-                name: The name of the variable
-                scope: The full nested scope of the variable
-            returns:
-                The type of the variable if found
-                raise KeyError if not found
-        """
+    def get_var(self, name, scope=["global"], return_scope_found=False) -> Variable:
         cur = self.typed_vars
         st = []
         debug_st = []
@@ -150,33 +143,45 @@ class Linter:
         while st:
             s = st.pop()
             if name in s:
-                var: Variable = s[name]
-                return var.pytype
+                return (s[name], debug_st) if return_scope_found else s[name]
+            debug_st.pop()
         
         # If not found in the direct scope hierarchy, also check global scope
         if scope != ["global"] and "global" in self.typed_vars:
             global_scope = self.typed_vars["global"]
             if name in global_scope and isinstance(global_scope[name], Variable):
-                return global_scope[name].pytype
+                return (global_scope[name], ["global"]) if return_scope_found else global_scope[name]
                 
         # If variable not found in provided scope, try to search in nested scopes
         # This handles cases where variables are defined in for loops or other nested constructs
-        def search_recursive(scope_dict, target_name):
+        def search_recursive(scope_dict, target_name, prev_func):
             if target_name in scope_dict and isinstance(scope_dict[target_name], Variable):
-                return scope_dict[target_name].pytype
+                return (scope_dict[target_name], prev_func) if return_scope_found else scope_dict[target_name]
             for key, value in scope_dict.items():
                 if isinstance(value, dict):
-                    result = search_recursive(value, target_name)
+                    result = search_recursive(value, target_name, key)
                     if result is not None:
-                        return result
+                        return result 
             return None
             
         # Search recursively starting from the innermost scope
-        result = search_recursive(cur, name)
+        result = search_recursive(cur, name, None)
         if result is not None:
             return result
 
         raise KeyError(f"Variable {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {debug_st}, all vars:  \n\n{self.typed_vars}\n\n")
+
+    def get_var_type(self, name, scope=["global"]) -> str | list[str]:
+        """
+            Get the type of a variable by going from innermost to outermost
+            params:
+                name: The name of the variable
+                scope: The full nested scope of the variable
+            returns:
+                The type of the variable if found
+                raise KeyError if not found
+        """
+        return self.get_var(name, scope).pytype
 
     def find_scope_by_var(self, name, findVar=False, findFunc=True, scope=["global"]):
         """

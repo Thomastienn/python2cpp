@@ -50,6 +50,14 @@ def parse(tree):
     # JUST A HEADER LIB
     print(HEADER)
 
+    print()
+    print("// All the variables I assume you want to be global")
+    # All the actual global variables
+    for var in printer.linter.actual_global_vars:
+        if var.pytype is None:
+            var.pytype = "auto"
+        print(f"{printer.linter.python_to_cpp_type(var.pytype)} {var.name};")
+
     # ALL TEMPLATES USED
     print("\n// Just my templates to replace python functions" if len(Utils.template_uses) > 0  else "",end="")
     for template in Utils.template_uses:

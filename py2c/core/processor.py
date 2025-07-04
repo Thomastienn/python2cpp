@@ -318,13 +318,13 @@ class ExprParser:
             # Get the type from argument and pass it to parameter
             type_ = self.repr.visit(arg, arg_repr_ctx)
             if not isinstance(arg, ast.Call):
-                self.linter.add_var(func_param.arg, type_, scope=repr_ctx.parser_ctx.scope)
+                self.linter.add_var(func_param.arg, type_, scope=repr_ctx.parser_ctx.scope,is_param=True)
 
         # For keywords like a=1, b=(math.pi*2) something
         for arg, value in node.keywords:
             type_ = self.repr.visit(arg, arg_repr_ctx)
             if not isinstance(arg, ast.Call):
-                self.linter.add_var(arg, type_, scope=repr_ctx.parser_ctx.scope)
+                self.linter.add_var(arg, type_, scope=repr_ctx.parser_ctx.scope, is_param=True)
 
         # Now need to return the type by going to function definition
         # Use the scope we determined earlier

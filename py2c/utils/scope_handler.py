@@ -42,3 +42,19 @@ class ScopeHandler:
         #     return [f"if_{id(node)}"]
 
         return current_scope
+
+    @staticmethod
+    def is_in_function_scope(current_scope: list[str]) -> bool:
+        """
+        Check if the current_scope is within a function scope.
+        """
+        for i in range(len(current_scope) - 1, -1, -1):
+            if current_scope[i] == "global":
+                return False
+            if current_scope[i].startswith("for"):
+                continue
+            if current_scope[i].startswith("if"):
+                continue
+            return True
+
+        return False
