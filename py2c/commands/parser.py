@@ -44,7 +44,7 @@ def parse(tree):
             logger.debug("SCAN: %d", i)
             printer.visit(exp, VisitContext(allow_print=False, is_scanning=True, scope=["global"]))
     except Exception as e:
-        raise Exception(f"Error while scanning the AST: {e}")
+        raise (type(e))(f"Error while scanning the AST: {e}") from e
 
     # print(printer.linter.funcs, file=sys.stderr)
     # JUST A HEADER LIB

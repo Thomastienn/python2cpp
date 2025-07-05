@@ -193,7 +193,8 @@ class ReprVisitor():
                 return f"{template_name.lower()}({result}, {low}, {high}, {step})"
             else:
                 if final_type == "str":
-                    return f"{result}.substr({low}, {int(high)-int(low)})"
+                    final_length = int(high)-int(low) if high.isdigit() else f"{high}-{low}"
+                    return f"{result}.substr({low}, {final_length})"
                 if isinstance(final_type, list) and final_type[0] == "list":
                     return f"{self.linter.python_to_cpp_type(final_type)}({result}.begin() + {low}, {result}.begin() + {high})"
                 

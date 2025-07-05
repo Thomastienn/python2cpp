@@ -35,7 +35,7 @@ class SecurityUtils:
         try:
             tree = ast.parse(code)
         except SyntaxError as e:
-            raise SecurityError(f"Invalid Python syntax: {str(e)}")
+            raise ParsingErrors.UserError(f"Invalid Python syntax: {str(e)}")
         
         # Count AST nodes
         node_count = sum(1 for _ in ast.walk(tree))
