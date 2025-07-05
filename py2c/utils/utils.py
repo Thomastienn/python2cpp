@@ -103,19 +103,19 @@ class SecurityUtils:
             return "This feature is not implemented yet\n" + str(error)
 
         if isinstance(error, ParsingErrors.ErrorUsage):
-            return "You are using a feature that is not supported\n" + error.message
+            return "You are using a feature that is not supported\n" + str(error)
 
         if isinstance(error, ParsingErrors.UserError):
-            return "There is an error in your code\n" + error.message
+            return "There is an error in your code\n" + str(error)
 
         if isinstance(error, ParsingErrors.ParserError):
-            return "My main processing (ExprParser) has an error\n" + error.message
+            return "My main processing (ExprParser) has an error\n" + str(error)
 
         if isinstance(error, ParsingErrors.VisitorError):
-            return "My repr visitor (ReprVisitor) has an error\n" + error.message
+            return "My repr visitor (ReprVisitor) has an error\n" + str(error)
 
         if isinstance(error, ParsingErrors.LinterError):
-            return "My linter (Linter) has an error\n" + error.message
+            return "My linter (Linter) has an error\n" + str(error)
         
         if isinstance(error, SecurityError):
             return str(error)  # Security errors are safe to expose
