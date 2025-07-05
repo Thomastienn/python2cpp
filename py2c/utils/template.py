@@ -12,6 +12,7 @@ class CPPTemplateReturnType(Enum):
     CMOD = "int"
     CREV = "auto"
     OVERLOAD_VECTOR_PRINT = "auto"
+    CSLICE = "auto"
 
 class CPPTemplate(Enum):
     FASTPOW = textwrap.dedent("""
@@ -111,6 +112,26 @@ class CPPTemplate(Enum):
         return os;
     }
     """)  
+
+    CSLICE = textwrap.dedent("""
+    template <typename Container>
+    Container cslice(const Container& c, int start, int end, int step) {
+        using ValueType = typename Container::value_type;
+        Container result;
+
+        int n = static_cast<int>(c.size());
+
+        if (start < 0) start += n;
+        if (end < 0) end += n;
+
+        start = max(0, min(start, n));
+        end = max(0, min(end, n));
+
+        for (int i = start; (step > 0 ? i < end: i > end); i += step)
+            result.push_back(c[i]);
+        return result;
+    }
+    """)
 
 
 

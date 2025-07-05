@@ -39,7 +39,7 @@ class Linter:
             "global": {},
         }
         self.funcs = funcs
-        self.actual_global_vars = []
+        self.actual_global_vars = set()
 
     def add_var(self, name, v_type, scope=["global"], **kwargs):
         cur_scope = self.typed_vars

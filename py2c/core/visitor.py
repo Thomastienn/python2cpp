@@ -74,7 +74,7 @@ class ReprVisitor():
                     (scope_found == "global" or (isinstance(scope_found, list) and scope_found[-1] == "global")) and \
                     var.is_param is False:
                     self.linter.set_has_type(node.id, ["global"])
-                    self.linter.actual_global_vars.append(var)
+                    self.linter.actual_global_vars.add(var)
 
                 return var_type
             except KeyError:
@@ -117,28 +117,64 @@ class ReprVisitor():
         new_ctx = ReprVisitContext(
             processor = repr_ctx.processor,
             parser_ctx = repr_ctx.parser_ctx,
-            expr_node = repr_ctx.expr_node
+            expr_node = repr_ctx.expr_node,
+            prev_node = node
         )
         access = []
         cur = node
+
         while isinstance(cur, ast.Subscript):
             access.append(self.visit(cur.slice, new_ctx))
             cur = cur.value
+
         result = self.visit(cur, new_ctx)
         
-        final_type = self.linter.get_subscript_type(result, len(access), scope=repr_ctx.parser_ctx.scope)
+        get_type_ctx = ReprVisitContext(
+            return_type=True,
+            processor=repr_ctx.processor,
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
+        )
+        if isinstance(node.slice, ast.Slice):
+            final_type = self.visit(node.value, get_type_ctx)
+        else:
+            final_type = self.linter.get_subscript_type(result, len(access), scope=repr_ctx.parser_ctx.scope)
+
         if repr_ctx.return_type:
             # Use string for all char and convert them down below
             # return "str" if final_type == "char" else final_type
             return final_type
         
-        for acc in reversed(access):
-            if acc == "-1":
-                acc = f"{result}.size() - 1"
-            result += f"[{acc}]"
-        # if final_type == "char":
-        #     return f"string(1, {result})"
-        return result
+        if not isinstance(node.slice, ast.Slice):
+            for acc in reversed(access):
+                if acc == "-1":
+                    acc = f"{result}.size() - 1"
+                result += f"[{acc}]"
+            # if final_type == "char":
+            #     return f"string(1, {result})"
+            return result
+
+        # Handle slice
+        else:
+            for acc in reversed(access[1:]):
+                if acc == "-1":
+                    acc = f"{result}.size() - 1"
+                result += f"[{acc}]"
+
+            low = "0" if node.slice.lower is None else self.visit(node.slice.lower, new_ctx)
+            high = f"{result}.size()" if node.slice.upper is None else self.visit(node.slice.upper, new_ctx)
+            step = "1" if node.slice.step is None else self.visit(node.slice.step, new_ctx)
+
+            if node.slice.step is not None:
+                template_name = CPPTemplate.CSLICE.name
+                Utils.template_uses.add(template_name)
+                return f"{template_name.lower()}({result}, {low}, {high}, {step})"
+            else:
+                if final_type == "str":
+                    return f"{result}.substr({low}, {int(high)-int(low)})"
+                if isinstance(final_type, list) and final_type[0] == "list":
+                    return f"{self.linter.python_to_cpp_type(final_type)}({result}.begin() + {low}, {result}.begin() + {high})"
+                
 
     def visit_BinOp(self, node: ast.BinOp, repr_ctx: ReprVisitContext):
         if repr_ctx.parser_ctx.is_scanning:
@@ -597,3 +633,23 @@ class ReprVisitor():
             expr_node = repr_ctx.expr_node
         )
         return f"{{{', '.join(f'{self.visit(k, new_ctx)}: {self.visit(v, new_ctx)}' for k, v in zip(node.keys, node.values))}}}"
+
+    def visit_Set(self, node: ast.Set, repr_ctx: ReprVisitContext):
+        if repr_ctx.return_type:
+            new_ctx = ReprVisitContext(
+                processor=repr_ctx.processor,
+                return_type=True,
+                parser_ctx=repr_ctx.parser_ctx,
+                expr_node = repr_ctx.expr_node
+            )
+            return ["set", self.visit(node.elts[0], new_ctx)]
+        
+        new_ctx = ReprVisitContext(
+            processor=repr_ctx.processor,
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
+        )
+        return f"set{{{', '.join(self.visit(el, new_ctx) for el in node.elts)}}}"
+
+    def visit_Slice(self, node: ast.Slice, repr_ctx: ReprVisitContext):
+        return ""

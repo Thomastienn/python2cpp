@@ -20,6 +20,9 @@ class Variable(BaseModel):
     pytype: VarType = "Unknown"
     lowest_val: int = 0
     highest_val: int = 100
+
+    def __hash__(self):
+        return hash(self.name)
     
 class VisitContext(BaseModel):
     current_indent: int = 0
@@ -40,6 +43,7 @@ class ReprVisitContext(BaseModel):
     return_type: bool = False
     parser_ctx: VisitContext 
     expr_node: ast.AST
+    prev_node: ast.AST | None = None
     
     model_config = {
         "arbitrary_types_allowed": True
