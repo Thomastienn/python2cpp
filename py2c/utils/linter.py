@@ -23,6 +23,7 @@ class Linter:
         "char": "char",
         "pair": "pair", 
         "auto": "auto",
+        "ll": "long long",
         "Unknown": "auto",
     }
     MAP_VALUE = {

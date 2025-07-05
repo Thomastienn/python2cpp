@@ -1,24 +1,6 @@
 n, q = map(int, input().split())
 a = list(map(int, input().split()))
 
-#IMPORTANT
-# 2*i : left node
-# 2*i + 1: right node
-# i//2 : Parent node
-# index 1 is the root (not 0)
-
-# Test case
-# 5 3
-# 1 3 5 7 9
-# 1 3
-# 2 4
-# 0 4
-
-# Expected
-# 9
-# 15
-# 16
-
 def push(node):
     tree[2*node] += lazy[node]
     lazy[2*node] += lazy[node]

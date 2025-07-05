@@ -61,21 +61,32 @@ class ReprVisitor():
             return Linter.MAP_VALUE[node_repr]
         return node_repr.replace("\'", "\"")
 
+    def check_add_global_var(self, var_name: str, repr_ctx: ReprVisitContext):
+        if not repr_ctx.parser_ctx.is_scanning:
+            return
+        try:
+            var, scope_found = self.linter.get_var(var_name, repr_ctx.parser_ctx.scope, return_scope_found=True)
+        except Exception:
+            return
+
+        if not isinstance(var, Variable):
+            return
+
+        if scope_found is not None and \
+            ScopeHandler.is_in_function_scope(repr_ctx.parser_ctx.scope) and \
+            (scope_found == "global" or (isinstance(scope_found, list) and scope_found[-1] == "global")) and \
+            var.is_param is False:
+            self.linter.set_has_type(var_name, ["global"])
+            self.linter.actual_global_vars.add(var)
+
     def visit_Name(self, node: ast.Name, repr_ctx: ReprVisitContext):
+        self.check_add_global_var(node.id, repr_ctx)
+            
         if repr_ctx.return_type:
             try:
-                var, scope_found = self.linter.get_var(node.id, repr_ctx.parser_ctx.scope, return_scope_found=True)
+                var = self.linter.get_var(node.id, repr_ctx.parser_ctx.scope)
                 var: Variable
-
                 var_type = var.pytype
-                if repr_ctx.parser_ctx.is_scanning and \
-                    scope_found is not None and \
-                    ScopeHandler.is_in_function_scope(repr_ctx.parser_ctx.scope) and \
-                    (scope_found == "global" or (isinstance(scope_found, list) and scope_found[-1] == "global")) and \
-                    var.is_param is False:
-                    self.linter.set_has_type(node.id, ["global"])
-                    self.linter.actual_global_vars.add(var)
-
                 return var_type
             except KeyError:
                 # During scanning phase, variables might not be defined yet
@@ -369,15 +380,21 @@ class ReprVisitor():
                 repr_ctx.processor.visit(node, repr_ctx.parser_ctx)
 
         if repr_ctx.return_type:
-            if isinstance(node.func, ast.Name):
-                if node.func.id in self.linter.funcs:
-                    return self.linter.funcs[node.func.id].return_pytype
+            cur_func = node.func
+            while isinstance(cur_func, ast.Call):
+                cur_func = cur_func.func
+
+            if isinstance(cur_func, ast.Name):
+                if cur_func.id in self.linter.funcs:
+                    return self.linter.funcs[cur_func.id].return_pytype
                 return self.get_type_from_pyfunction(node, repr_ctx)
-            if isinstance(node.func, ast.Attribute):
-                return self.linter.get_attr_type("Unknown", node.func.attr)
+            if isinstance(cur_func, ast.Attribute):
+                return self.linter.get_attr_type("Unknown", cur_func.attr)
                 
-                self.logger.error("Call %s not implemented", node.func)
-                raise NotImplementedError(f"Call {node.func} not implemented")
+                self.logger.error("Call %s not implemented", cur_func)
+                raise NotImplementedError(f"Call {cur_func} not implemented")
+
+            raise NotImplementedError("Call node is not a Name or Attribute")
 
         res = self.handle_pyfunc(node, repr_ctx)
         if res is not None:
@@ -389,9 +406,7 @@ class ReprVisitor():
             expr_node = repr_ctx.expr_node
         )
         result_str = self.visit(node.func, new_ctx)
-        # TODO: This not fixing it. We need a better way
-        if not isinstance(node.func, ast.Attribute):
-            result_str += f"({', '.join(self.visit(arg, new_ctx) for arg in node.args)})"
+        result_str += f"({', '.join(self.visit(arg, new_ctx) for arg in node.args)})"
         return result_str
 
     def handle_pyattr(self, node_name:str, attr_name: str):

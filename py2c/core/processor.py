@@ -13,19 +13,6 @@ from py2c.core.structure import VisitContext, ReprVisitContext, Function
 from py2c.utils.logger import setup_logger
 
 
-# _original_print = builtins.print
-# def print(*args, **kwargs):
-#     # Extract file= if present, to pass as stream to pprint
-#     stream = kwargs.pop('file', None)
-#     # If exactly one argument, use pprint.pprint on it
-#     if len(args) == 1:
-#         pprint.pprint(args[0], stream=stream)
-#     else:
-#         # Multiple args: behave like regular print, including file=...
-#         if stream is not None:
-#             kwargs['file'] = stream
-#         _original_print(*args, **kwargs)
-
 class ExprParser:
     def __init__(self, funcs: dict[str, Function]):
         self.linter = Linter(funcs)
