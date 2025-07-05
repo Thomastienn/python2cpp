@@ -61,14 +61,15 @@ const validatePythonCode = (code: string): string | null => {
 
 const sanitizeErrorMessage = (error: string): string => {
     // Remove potentially sensitive information from error messages
-    const sensitivePatterns = [/File ".*?"/g, /line \d+/g, /Traceback.*?:/g];
+    // const sensitivePatterns = [/File ".*?"/g, /line \d+/g, /Traceback.*?:/g];
+    //
+    // let sanitized = error;
+    // sensitivePatterns.forEach((pattern) => {
+    //     sanitized = sanitized.replace(pattern, '[REDACTED]');
+    // });
 
-    let sanitized = error;
-    sensitivePatterns.forEach((pattern) => {
-        sanitized = sanitized.replace(pattern, '[REDACTED]');
-    });
-
-    return sanitized;
+    // return sanitized;
+    return error;
 };
 
 export function App() {
@@ -125,27 +126,27 @@ export function App() {
             const data: ConvertCodeResponse = await response.json();
 
             if (response.status !== 200) {
-                let errorMessage = '// ERROR: Conversion failed\n';
+                let errorMessage = 'ERROR: Conversion failed\n';
 
                 if (response.status === 429) {
                     errorMessage +=
-                        '// Rate limit exceeded. Please wait before trying again.\n';
+                        'Rate limit exceeded. Please wait before trying again.\n';
                 } else if (response.status === 400) {
-                    errorMessage += `// Input validation error: ${data.detail || 'Invalid input'}\n`;
+                    errorMessage += `Input validation error: ${data.detail || 'Invalid input'}\n`;
                 } else if (response.status === 408) {
                     errorMessage +=
-                        '// Request timeout: Code processing took too long\n';
+                        'Request timeout: Code processing took too long\n';
                 } else {
-                    errorMessage += `// Server error (${response.status})\n`;
+                    errorMessage += `Server error (${response.status})\n`;
                 }
 
                 if (data.detail) {
                     // Sanitize error message before displaying
                     const sanitizedDetail = sanitizeErrorMessage(data.detail);
-                    errorMessage += `// Details: ${sanitizedDetail}`;
+                    errorMessage += `Details: ${sanitizedDetail}`;
                 }
 
-                setCppCode(errorMessage);
+                setCppCode('//' + errorMessage.replace('\n', '\n// '));
             } else {
                 setCppCode(
                     data.code || '// ERROR: No code returned from server',

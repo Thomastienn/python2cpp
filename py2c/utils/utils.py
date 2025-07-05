@@ -188,7 +188,7 @@ class Utils:
             if isinstance(e, (SecurityError, TimeoutError)):
                 raise
             # For other errors, wrap them for consistent handling
-            raise type(e)(f"Processing failed: {type(e).__name__}")
+            raise type(e)(f"Processing failed: {e}")
     
     @staticmethod
     def setup_security_logging() -> logging.Logger:
