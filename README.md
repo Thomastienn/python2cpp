@@ -71,7 +71,6 @@ using namespace std;
 int mod;
 
 // Just my templates to replace python functions
-template <typename T>
 int cmod(int a, int b) {
     return (a % b + b) % b;
 }
