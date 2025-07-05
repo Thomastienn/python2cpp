@@ -90,7 +90,6 @@ class CPPTemplate(Enum):
     """)
 
     CMOD = textwrap.dedent("""
-    template <typename T>
     int cmod(int a, int b) {
         return (a % b + b) % b;
     }
