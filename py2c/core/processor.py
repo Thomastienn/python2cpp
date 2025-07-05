@@ -115,7 +115,7 @@ class ExprParser:
         """
         Handle annotated assignments like `a: int = 1`
         """
-        type_ = self.linter.get_type_from_annotations(node.annotation)
+        type_ = self.linter.get_pytype_from_annotations(node.annotation)
         target = node.target
 
         repr_ctx = ReprVisitContext(

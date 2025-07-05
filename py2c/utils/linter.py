@@ -287,7 +287,7 @@ class Linter:
 
         return pytype_left
 
-    def get_type_from_annotations(self, annotations: ast.AST) -> str | list[str]:
+    def get_pytype_from_annotations(self, annotations: ast.AST) -> str | list[str]:
         """
         Extract type information from function annotations.
         """
@@ -301,13 +301,13 @@ class Linter:
             if not isinstance(base, ast.Name):
                 raise ValueError(f"Subscript base should be a Name, got {type(base)}")
             base_type = base.id
-            type_ = self.get_type_from_annotations(annotations.slice)
+            type_ = self.get_pytype_from_annotations(annotations.slice)
             if isinstance(annotations.slice, ast.Tuple):
                 return [base_type, *type_]
             return [base_type, type_]
             
         if isinstance(annotations, ast.Tuple):
-            return [self.get_type_from_annotations(elt) for elt in annotations.elts]
+            return [self.get_pytype_from_annotations(elt) for elt in annotations.elts]
         
         
         raise NotImplementedError(f"Annotation type {type(annotations)} not implemented")
