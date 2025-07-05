@@ -24,11 +24,22 @@ class ReprVisitor():
         """
         func_name = func_node.func.id
         if func_name in Linter.TYPES:
+            if func_name == "list":
+                type_arg = self.visit(func_node.args[0], repr_ctx)
+                return ["list"] + type_arg[1:] if isinstance(type_arg, list) else ["list", type_arg]
             return func_name
+
+        get_type_ctx = ReprVisitContext(
+            return_type=True,
+            processor=repr_ctx.processor,
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
+        )
         
         if func_name == "map":
             # TODO: Do lambda functions too
-            return func_node.args[0].id
+            type_iter = self.visit(func_node.args[1], get_type_ctx)
+            return type_iter[:-1] + [func_node.args[0].id]
         elif func_name == "input":
             return "str"
         elif func_name in ["len", "int", "ord"]:
