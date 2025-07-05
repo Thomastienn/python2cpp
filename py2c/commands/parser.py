@@ -50,7 +50,7 @@ def parse(tree):
     # JUST A HEADER LIB
     print(HEADER)
 
-    print("\n// All the variables I assume you want to be global" if len(printer.linter.actual_global_vars) > 0 else "", end="")
+    print("\n// All the variables I assume you want to be global\n" if len(printer.linter.actual_global_vars) > 0 else "", end="")
     # All the actual global variables
     for var in printer.linter.actual_global_vars:
         if var.pytype is None:
