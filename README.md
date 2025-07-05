@@ -67,18 +67,15 @@ print(ans)
 #include <bits/stdc++.h>
 using namespace std;
 
-// Just my templates to replace python functions
-vector<string> csplit(const string& s, const string& delim = " ") {
-    vector<string> result;
-    size_t start = 0, end;
+// All the variables I assume you want to be global
+int mod;
 
-    while ((end = s.find(delim, start)) != string::npos) {
-        result.push_back(s.substr(start, end - start));
-        start = end + delim.length();
-    }
-    result.push_back(s.substr(start));
-    return result;
+// Just my templates to replace python functions
+template <typename T>
+int cmod(int a, int b) {
+    return (a % b + b) % b;
 }
+
 
 template <typename T>
 long long fastpow(T a, T b) {
@@ -93,20 +90,33 @@ long long fastpow(T a, T b) {
     return res;
 }
 
-string cinput() {
+string cinput(string prompt = "") {
+    cout << prompt;
     string s;
     getline(cin, s);
     return s;
+}
+
+vector<string> csplit(const string& s, const string& delim = " ") {
+    vector<string> result;
+    size_t start = 0, end;
+
+    while ((end = s.find(delim, start)) != string::npos) {
+        result.push_back(s.substr(start, end - start));
+        start = end + delim.length();
+    }
+    result.push_back(s.substr(start));
+    return result;
 }
 
 // Your functions are here
 vector<vector<int>> multiply(vector<vector<int>> a, vector<vector<int>> b) {
     vector<vector<int>> res = [&] {
         vector<vector<int>> parent;
-        for (int i = 0; i < a.size(); i++) {
+        for (int i = 0; i < a.size(); i += 1) {
             vector<int> temp = [&] {
                 vector<int> parent;
-                for (int j = 0; j < b[0].size(); j++) {
+                for (int j = 0; j < b[0].size(); j += 1) {
                     int temp = 0;
                     parent.push_back(temp);
                 }
@@ -116,10 +126,10 @@ vector<vector<int>> multiply(vector<vector<int>> a, vector<vector<int>> b) {
         }
         return parent;
     }();
-    for (int i = 0; i < a.size(); i++) {
-        for (int j = 0; j < b[0].size(); j++) {
-            for (int k = 0; k < b.size(); k++) {
-                res[i][j] = ((res[i][j] + (a[i][k] * b[k][j])) % mod);
+    for (int i = 0; i < a.size(); i += 1) {
+        for (int j = 0; j < b[0].size(); j += 1) {
+            for (int k = 0; k < b.size(); k += 1) {
+                res[i][j] = cmod((res[i][j] + (a[i][k] * b[k][j])), mod);
             }
         }
     }
@@ -128,10 +138,10 @@ vector<vector<int>> multiply(vector<vector<int>> a, vector<vector<int>> b) {
 vector<vector<int>> power(vector<vector<int>> x, int n) {
     vector<vector<int>> res = [&] {
         vector<vector<int>> parent;
-        for (int i = 0; i < x.size(); i++) {
+        for (int i = 0; i < x.size(); i += 1) {
             vector<int> temp = [&] {
                 vector<int> parent;
-                for (int j = 0; j < x.size(); j++) {
+                for (int j = 0; j < x.size(); j += 1) {
                     int temp = (j == i)? (1) : (0);
                     parent.push_back(temp);
                 }
@@ -152,7 +162,7 @@ vector<vector<int>> power(vector<vector<int>> x, int n) {
 }
 
 int main() {
-    int mod = (fastpow(10, 9) + 7);
+    mod = (fastpow(10, 9) + 7);
     auto [n,m,t] = [&] {
         vector<int>temp;
         vector<string> arg2 = csplit(cinput());
@@ -163,10 +173,10 @@ int main() {
     }();
     vector<vector<int>> A = [&] {
         vector<vector<int>> parent;
-        for (int j = 0; j < (n + 1); j++) {
+        for (int j = 0; j < (n + 1); j += 1) {
             vector<int> temp = [&] {
                 vector<int> parent;
-                for (int i = 0; i < (n + 1); i++) {
+                for (int i = 0; i < (n + 1); i += 1) {
                     int temp = (i == j)? (1) : (0);
                     parent.push_back(temp);
                 }
@@ -178,13 +188,13 @@ int main() {
     }();
     vector<int> types = [&] {
         vector<int> parent;
-        for (int _ = 0; _ < n; _++) {
+        for (int _ = 0; _ < n; _ += 1) {
             int temp = stoi(cinput());
             parent.push_back(temp);
         }
         return parent;
     }();
-    for (int i = 0; i < m; i++) {
+    for (int i = 0; i < m; i += 1) {
         auto [u,v] = [&] {
             vector<int>temp;
             vector<string> arg2 = csplit(cinput());
@@ -209,14 +219,14 @@ int main() {
     A = power(A, t);
     A = multiply(A, [&] {
         vector<vector<int>> parent;
-        for (int _ = 0; _ < (n + 1); _++) {
-            vector<int> temp = {1};
+        for (int _ = 0; _ < (n + 1); _ += 1) {
+            vector<int> temp = vector{1};
             parent.push_back(temp);
         }
         return parent;
     }());
     int ans = 0;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i += 1) {
         ans += A[i][0];
     }
     cout << ans << "\n";
