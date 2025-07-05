@@ -130,8 +130,8 @@ class ReprVisitor():
         if isinstance(node.elts[0], ast.Name) and isinstance(node.elts[0].ctx, ast.Store):
             return ",".join(self.visit(el, new_ctx) for el in node.elts)
         # Define this as a pair now
-        if len(node.elts) == 2:
-            return f"{{{self.visit(node.elts[0], new_ctx)}, {self.visit(node.elts[1], new_ctx)}}}"
+        # if len(node.elts) == 2:
+        #     return f"{{{self.visit(node.elts[0], new_ctx)}, {self.visit(node.elts[1], new_ctx)}}}"
             
         return f"make_tuple({', '.join(self.visit(el, new_ctx) for el in node.elts)})"
 
