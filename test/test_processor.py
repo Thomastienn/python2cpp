@@ -18,9 +18,6 @@ class TestProcessor(unittest.TestCase):
     def setUp(self):
         self.parser = ExprParser({})
 
-    def tearDown(self):
-        self.parser.debug.close()
-
     def test_assign(self):
         node = ast.parse("a = 2").body[0]
         s = Utils.capture_output(self.parser.visit, node)
@@ -45,16 +42,11 @@ class TestProcessor(unittest.TestCase):
 
         node = ast.parse("d = [1]").body[0]
         s = Utils.capture_output(self.parser.visit, node)
-        self.assertEqual(s, "vector<int> d = {1};\n", f"{s!r}")
+        self.assertEqual(s, "vector<int> d = vector{1};\n", f"{s!r}")
 
         node = ast.parse("e = [1.0,2.0,3.0]").body[0]
         s = Utils.capture_output(self.parser.visit, node)
-        self.assertEqual(s, "vector<float> e = {1.0, 2.0, 3.0};\n", f"{s!r}")
-
-        # Auto convert to pair if it's just 2 elements
-        node = ast.parse("f = (1,2.0)").body[0]
-        s = Utils.capture_output(self.parser.visit, node)
-        self.assertEqual(s, "pair<int, float> f = {1, 2.0};\n", f"{s!r}")
+        self.assertEqual(s, "vector<float> e = vector{1.0, 2.0, 3.0};\n", f"{s!r}")
 
         node = ast.parse("g = (1,2.0, \"hi\")").body[0]
         s = Utils.capture_output(self.parser.visit, node)

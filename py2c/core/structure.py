@@ -12,10 +12,12 @@ class Function(BaseModel):
     _ast_object: ast.FunctionDef = PrivateAttr()
     user_func: bool = False
 
+
+type VarType = str | list[VarType]
 class Variable(BaseModel):
     name: str
     is_param: bool = False
-    pytype: list[str] | str = "Unknown"
+    pytype: VarType = "Unknown"
     lowest_val: int = 0
     highest_val: int = 100
     

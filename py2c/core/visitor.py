@@ -95,7 +95,7 @@ class ReprVisitor():
                 expr_node = repr_ctx.expr_node
             )
             # Use list instead of pair for all tuples
-            type_ = ["list"]
+            type_ = ["tuple"]
             for el in node.elts:
                 type_.append(self.visit(el, new_ctx))
             return type_
@@ -406,13 +406,8 @@ class ReprVisitor():
                 parser_ctx=repr_ctx.parser_ctx,
                 expr_node = repr_ctx.expr_node
             )
-            elt_type = self.visit(node.elt, new_ctx)
-            final = ["list"]
-            if isinstance(elt_type, list):
-                final += elt_type
-            else:
-                final.append(elt_type)
-            return final
+            return ["list", self.visit(node.elt, new_ctx)]
+
         # Replace python with c++ syntax
         # Go from list comprehension to a seperate for loop
         new_ctx = ReprVisitContext(
@@ -462,9 +457,7 @@ class ReprVisitor():
             return temp_type
             
         assign_body, temp_type = Utils.capture_output(assign_to, include_return=True)
-        if not isinstance(temp_type, list):
-            temp_type = [temp_type]
-        parent_type = ["list"] + temp_type
+        parent_type = ["list", temp_type]
         cpp_type = self.linter.python_to_cpp_type(parent_type)
         result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}{cpp_type} parent;\n"
         result += gens_str
@@ -523,9 +516,6 @@ class ReprVisitor():
                 parser_ctx=repr_ctx.parser_ctx,
                 expr_node = repr_ctx.expr_node
             )
-            element_type = self.visit(node.elts[0], new_ctx)
-            if isinstance(element_type, list):
-                return ["list"] + element_type
             return ["list", self.visit(node.elts[0], new_ctx)]
 
         new_ctx = ReprVisitContext(

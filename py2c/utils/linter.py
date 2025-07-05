@@ -222,36 +222,13 @@ class Linter:
         if t_name is None:
             return "void"
         if isinstance(t_name, list):
-            if len(t_name) == 1:
-                # Handle single element list - check for Unknown first
-                if t_name[0] == "Unknown":
-                    return "auto"
-                return Linter.TYPES[t_name[0]]
-            container_type = t_name[0]
-            # Handle Unknown container type
-            if container_type == "Unknown":
-                return "auto"
-            if container_type in ["list", "set"]:
-                return f"{Linter.TYPES[container_type]}<{self.python_to_cpp_type(t_name[1:])}>"
-            if container_type in ["pair", "tuple"]:
-                return f"{container_type}<{', '.join(self.python_to_cpp_type(t) for t in t_name[1:])}"
-            # Check if the first element is actually a basic type, not a container
-            # This handles cases where the type system produces malformed type representations
-            if isinstance(container_type, list):
-                container_type = container_type[0]
-            if container_type in Linter.TYPES:
-                # This seems to be a malformed type list - just return the first element's type
-                # This is a fallback for cases where type inference produces incorrect structures
-                return Linter.TYPES[container_type]
-            if container_type in Linter.CAST_TYPES:
-                return Linter.CAST_TYPES[container_type]
-
-            raise NotImplementedError(f"{container_type} not implemented")
+            return f"{self.python_to_cpp_type(t_name[0])}<{', '.join(self.python_to_cpp_type(t) for t in t_name[1:])}>"
         if t_name in Linter.CAST_TYPES:
             return Linter.CAST_TYPES[t_name]
-        if t_name not in Linter.TYPES:
-            raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
-        return Linter.TYPES[t_name]
+        if t_name in Linter.TYPES:
+            return Linter.TYPES[t_name]
+            
+        raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
 
     def get_subscript_type(self, base_name, size, scope=["global"]):
         try:
@@ -324,8 +301,10 @@ class Linter:
             if not isinstance(base, ast.Name):
                 raise ValueError(f"Subscript base should be a Name, got {type(base)}")
             base_type = base.id
-            inside_type = self.get_type_from_annotations(annotations.slice)
-            return [base_type] + ([inside_type] if isinstance(inside_type, str) else inside_type)
+            type_ = self.get_type_from_annotations(annotations.slice)
+            if isinstance(annotations.slice, ast.Tuple):
+                return [base_type, *type_]
+            return [base_type, type_]
             
         if isinstance(annotations, ast.Tuple):
             return [self.get_type_from_annotations(elt) for elt in annotations.elts]
