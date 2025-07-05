@@ -7,7 +7,9 @@ import tempfile
 import logging
 from pathlib import Path
 from typing import Optional, Tuple, Any
+
 from py2c.utils.constants import SECURITY_CONFIG
+import py2c.core.errors as ParsingErrors
 
 
 class SecurityError(Exception):
@@ -96,18 +98,35 @@ class SecurityUtils:
         """Sanitize error messages to prevent information disclosure"""
         if debug_mode:
             return str(error)
+
+        if isinstance(error, NotImplementedError):
+            return "This feature is not implemented yet\n" + str(error)
+
+        if isinstance(error, ParsingErrors.ErrorUsage):
+            return "You are using a feature that is not supported\n" + error.message
+
+        if isinstance(error, ParsingErrors.UserError):
+            return "There is an error in your code\n" + error.message
+
+        if isinstance(error, ParsingErrors.ParserError):
+            return "My main processing (ExprParser) has an error\n" + error.message
+
+        if isinstance(error, ParsingErrors.VisitorError):
+            return "My repr visitor (ReprVisitor) has an error\n" + error.message
+
+        if isinstance(error, ParsingErrors.LinterError):
+            return "My linter (Linter) has an error\n" + error.message
         
-        # Generic error messages for security
-        if isinstance(error, SyntaxError):
-            return "Invalid Python syntax in input code"
-        elif isinstance(error, SecurityError):
+        if isinstance(error, SecurityError):
             return str(error)  # Security errors are safe to expose
-        elif isinstance(error, MemoryError):
+
+        if isinstance(error, MemoryError):
             return "Input code is too complex or large"
-        elif isinstance(error, TimeoutError):
+
+        if isinstance(error, TimeoutError):
             return "Code processing timed out"
-        else:
-            return "An error occurred while processing your code"
+
+        return "An error occurred while processing your code"
 
 
 class TimeoutContext:
@@ -191,7 +210,3 @@ class Utils:
             logger.addHandler(handler)
         
         return logger
-
-
-
-

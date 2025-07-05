@@ -5,6 +5,7 @@ from copy import deepcopy
 from collections import defaultdict
 
 from py2c.core.structure import Function, Variable
+from py2c.core.errors import LinterError, UserError
 
 
 class Linter:
@@ -111,14 +112,16 @@ class Linter:
     def unset_has_type(self, name, scope=["global"]):
         cur_scope = self.has_typed
         for s in scope:
-            assert s in cur_scope, "Scope not found"
+            if s not in cur_scope:
+                raise LinterError(f"Scope {s} not found in {scope}")
             cur_scope = cur_scope[s]
         cur_scope[name] = False
 
     def remove_var(self, name, scope=["global"]):
         cur_scope = self.typed_vars
         for s in scope:
-            assert s in cur_scope, "Scope not found"
+            if s not in cur_scope:
+                raise LinterError(f"Scope {s} not found in {scope}")
             cur_scope = cur_scope[s]
         del cur_scope[name]
 
@@ -137,7 +140,8 @@ class Linter:
         st = []
         debug_st = []
         for s in scope:
-            assert s in cur, f"Scope not found \"{s}\" in {scope}, stop finding {name}, current stack {cur}, current scope stack {debug_st}, all vars:  \n\n{self.typed_vars}\n\n"
+            if s not in cur:
+                raise LinterError(f"Scope {s} not found in {scope}, stop finding {name}, current stack {cur}, current scope stack {debug_st}, all vars:  \n\n{self.typed_vars}\n\n")
             cur = cur[s]
             st.append(cur)
             debug_st.append(s)
@@ -170,7 +174,7 @@ class Linter:
         if result is not None:
             return result
 
-        raise KeyError(f"Variable {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {debug_st}, all vars:  \n\n{self.typed_vars}\n\n")
+        raise LinterError(f"Variable {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {debug_st}, all vars:  \n\n{self.typed_vars}\n\n")
 
     def get_var_type(self, name, scope=["global"]) -> str | list[str]:
         """
@@ -191,13 +195,15 @@ class Linter:
             name: The name of the variable/function
             scope: The current scope we are in
         """
-        assert findVar != findFunc, "Cannot find both variable and function at the same time"
+        if findVar == findFunc:
+            raise LinterError("You must specify either findVar or findFunc, not both")
 
         cur = self.typed_vars
         st = []
         st_str = []
         for s in scope:
-            assert s in cur, f"Scope not found \"{s}\" in {scope}, stop finding {name}, current stack {cur}, current scope stack {st_str}, all vars:  \n\n{self.typed_vars}\n\n"
+            if s not in cur:
+                raise LinterError(f"Scope {s} not found in {scope}, stop finding {name}, current stack {cur}, current scope stack {st_str}, all vars:  \n\n{self.typed_vars}\n\n")
             cur = cur[s]
             st.append(cur)
             st_str.append(s)
@@ -211,7 +217,7 @@ class Linter:
                 if findFunc and isinstance(s[name], dict):
                     return deepcopy(st_str)
         
-        raise KeyError(f"Variable/Function {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {st_str}, all vars:  \n\n{self.typed_vars}\n\n")
+        raise LinterError(f"Variable/Function {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {st_str}, all vars:  \n\n{self.typed_vars}\n\n")
 
     def add_func(self, name, f_type):
         self.typed_funcs[name] = f_type
@@ -293,14 +299,14 @@ class Linter:
         Extract type information from function annotations.
         """
         if isinstance(annotations, (ast.Constant, ast.List)):
-            raise ValueError(f"Annotations shouldn't have {type(annotations)}, got {annotations.value}")
+            raise UserError(f"Annotations shouldn't have {type(annotations)}, got {annotations.value}")
 
         if isinstance(annotations, ast.Name):
             return annotations.id
         if isinstance(annotations, ast.Subscript):
             base = annotations.value
             if not isinstance(base, ast.Name):
-                raise ValueError(f"Subscript base should be a Name, got {type(base)}")
+                raise LinterError(f"Subscript base should be a Name, got {type(base)}")
             base_type = base.id
             type_ = self.get_pytype_from_annotations(annotations.slice)
             if isinstance(annotations.slice, ast.Tuple):

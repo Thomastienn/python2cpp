@@ -11,6 +11,7 @@ from py2c.utils.scope_handler import ScopeHandler
 from py2c.core.visitor import ReprVisitor
 from py2c.core.structure import VisitContext, ReprVisitContext, Function
 from py2c.utils.logger import setup_logger
+from py2c.core.errors import ErrorUsage, UserError, ParserError, LinterError, VisitorError
 
 
 class ExprParser:
@@ -40,7 +41,7 @@ class ExprParser:
             self.logger.debug("Debug info - typed_vars: %s", self.linter.typed_vars)
             self.logger.debug("Debug info - funcs: %s", self.linter.funcs)
             return
-        raise RuntimeError("You are not supposed to end up here")
+        raise ErrorUsage("You are not supposed to end up here")
         
     def visit(self, node: ast.AST, visit_ctx: VisitContext = VisitContext()):
         if visit_ctx.allow_print is None:
@@ -93,7 +94,7 @@ class ExprParser:
             try:
                 self.linter.get_var_type(name, scope=visit_ctx.scope)
                 return True
-            except KeyError:
+            except LinterError:
                 return False
 
         return self.linter.does_has_type(name, scope=visit_ctx.scope)
@@ -145,7 +146,7 @@ class ExprParser:
                 )
                 type_name_val = self.repr.visit(value, repr_ctx)
             cpp_type = self.linter.python_to_cpp_type(type_name_val)
-        except Exception as e:
+        except (LinterError, VisitorError) as e:
             type_var_err = e
 
         repr_ctx = ReprVisitContext(
@@ -192,7 +193,7 @@ class ExprParser:
                 else:
                     # Theres an error with the type
                     if type_var_err is not None:
-                        raise type_var_err
+                        raise ParserError(str(type_var_err))
                     # At least one variable is new, declare with auto
                     for target_s in target_vars:
                         if not self.already_declared(target_s, visit_ctx):
@@ -204,8 +205,7 @@ class ExprParser:
                 self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
             else:
                 if type_var_err is not None:
-                    print(target_str, value_str)
-                    raise type_var_err
+                    raise ParserError(str(type_var_err))
                 # Single variable, not declared yet
                 self.linter.add_var(target_str, type_name_val, scope=visit_ctx.scope)
                 self.set_type(target_str, visit_ctx.scope)
@@ -272,7 +272,7 @@ class ExprParser:
         # Try to find the function scope, but handle case where it doesn't exist yet
         try:
             new_visitctx.scope = self.linter.find_scope_by_var(func_name, findFunc=True, scope=visit_ctx.scope)
-        except KeyError:
+        except LinterError:
             # If function not found in scope system yet (during scanning), assume global scope
             if func.user_func:
                 new_visitctx.scope = ["global"]
@@ -368,7 +368,7 @@ class ExprParser:
                         # Try to find function scope, but handle case where it doesn't exist yet
                         try:
                             func_scope = self.linter.find_scope_by_var(name_func, findFunc=True, scope=visit_ctx.scope)
-                        except KeyError:
+                        except LinterError:
                             # If function not found in scope system yet, assume global scope
                             func_scope = ["global"]
                         
@@ -438,7 +438,7 @@ class ExprParser:
             expr_node=node
         )
         if len(node.args) == 0:
-            raise RuntimeError("No arguments for range()")
+            raise UserError("No arguments for range()")
         elif len(node.args) == 1:
             end = self.repr.visit(node.args[0], repr_ctx)
         elif len(node.args) == 2:
@@ -449,9 +449,11 @@ class ExprParser:
             end = self.repr.visit(node.args[1], repr_ctx)
             step = self.repr.visit(node.args[2], repr_ctx)
         else:
-            raise RuntimeError("Too many arguments for range()")
+            raise UserError("Too many arguments for range()")
             
-        assert end != None, "my badd, end of range should be parsed"
+        if end is None:
+            raise ParserError("my badd, end of range should be parsed")
+
         add_str = f"{var}++" if step == "1" else f"{var} += {step}"
         compare_sign = "<" if int(step) > 0 else ">"
         self.print_line(f"for (int {var} = {start}; {var} {compare_sign} {end}; {add_str}) {{", visit_ctx.current_indent)

@@ -14,7 +14,7 @@ def _make_test(file, root, output_dir):
         src = os.path.join("test_pythons", file)
         dst = os.path.join(output_dir, file[:-3] + ".cpp")
         result = subprocess.run(
-            ["python", "main.py", src, dst],
+            ["python", "main.py", "--debug", src, dst],
             capture_output=True, text=True
         )
         self.assertEqual(

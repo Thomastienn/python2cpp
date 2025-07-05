@@ -3,7 +3,6 @@ import ast
 import io
 from copy import deepcopy
 
-from collections import OrderedDict
 from py2c.utils.linter import Linter
 from py2c.utils.utils import Utils
 from py2c.utils.constants import TAB
@@ -11,6 +10,7 @@ from py2c.utils.template import CPPTemplate
 from py2c.core.structure import ReprVisitContext, VisitContext, Variable
 from py2c.utils.scope_handler import ScopeHandler
 from py2c.utils.logger import setup_logger
+from py2c.core.errors import VisitorError, UserError, LinterError
 
 
 class ReprVisitor():
@@ -77,7 +77,7 @@ class ReprVisitor():
             return
         try:
             var, scope_found = self.linter.get_var(var_name, repr_ctx.parser_ctx.scope, return_scope_found=True)
-        except Exception:
+        except LinterError:
             return
 
         if not isinstance(var, Variable):
@@ -99,13 +99,13 @@ class ReprVisitor():
                 var: Variable
                 var_type = var.pytype
                 return var_type
-            except KeyError:
+            except LinterError:
                 # During scanning phase, variables might not be defined yet
                 # Return a placeholder type that can be resolved later
                 if repr_ctx.parser_ctx.is_scanning:
                     return "Unknown"
                 else:
-                    raise
+                    raise VisitorError(f"Variable '{node.id}' not found in scope {repr_ctx.parser_ctx.scope}")
         return node.id
 
     def visit_Tuple(self, node: ast.Tuple, repr_ctx: ReprVisitContext):
@@ -366,7 +366,7 @@ class ReprVisitor():
             if type_arg == "str":
                 return f"static_cast<int>({self.visit(node.args[0], new_ctx)}.at(0))"
 
-            raise ValueError(f"Cannot convert {type_arg} to int using ord()")
+            raise UserError(f"Cannot convert {type_arg} to int using ord()")
 
         if func_name == "chr":
             return f"static_cast<char>({self.visit(node.args[0], new_ctx)})"
@@ -434,7 +434,7 @@ class ReprVisitor():
             return f"{func_name.lower()}({node_name})"
 
         self.logger.error("Attribute %s not implemented for %s", attr_name, node_name)
-        raise NotImplementedError
+        raise NotImplementedError("This python attribute is not implemented yet: " + attr_name)
 
     def visit_Attribute(self, node: ast.Attribute, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:
@@ -483,7 +483,9 @@ class ReprVisitor():
         # FOR LOOPS AND IF STATEMENTS
         gens_str = ""
         for gen in node.generators:
-            assert isinstance(gen, ast.comprehension), "Generator is not comprehension"
+            if not isinstance(gen, ast.comprehension):
+                raise VisitorError("Generator is not a comprehension")
+
             for_node = ast.For(
                 target = gen.target,
                 iter = gen.iter,

@@ -130,6 +130,7 @@ async def convert(request: Request, req: CodeRequest):
         
         # Return sanitized error message
         sanitized_error = SecurityUtils.sanitize_error_message(e, debug_mode=False)
-        raise HTTPException(status_code=500, detail=sanitized_error)
+        full_error = sanitized_error + "\n\nTraceback for devs: " + traceback.format_exc()
+        raise HTTPException(status_code=500, detail=full_error)
 
 
