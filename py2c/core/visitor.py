@@ -574,7 +574,32 @@ class ReprVisitor():
             parser_ctx=repr_ctx.parser_ctx,
             expr_node = repr_ctx.expr_node
         )
-        return f"{self.visit(node.left, new_ctx)} {self.visit_op(node.ops[0])} {self.visit(node.comparators[0], new_ctx)}"
+        get_type_ctx = ReprVisitContext(
+            return_type=True,
+            processor=repr_ctx.processor,
+            parser_ctx=repr_ctx.parser_ctx,
+            expr_node = repr_ctx.expr_node
+        )
+        repr_left = self.visit(node.left, new_ctx)
+        repr_comparators = self.visit(node.comparators[0], new_ctx)
+
+        if isinstance(node.ops[0], ast.In):
+            type_left = self.visit(node.left, get_type_ctx)
+            type_right = self.visit(node.comparators[0], get_type_ctx)
+
+            if type_left in ["char", "str"] and type_right == "str":
+                return f"{repr_left}.find({repr_comparators}) != npos"
+
+            if isinstance(type_right, list) and type_right[0] == "list":
+                # Use template, this is temporary
+                return f"find({repr_comparators}.begin(), {repr_comparators}.end(), {repr_left}) != {repr_comparators}.end()"
+
+            if isinstance(type_right, list) and type_right[0] == "set":
+                return f"{repr_comparators}.count({repr_left}) > 0"
+
+            raise UserError(f"Cannot use 'in' operator with {type_left} and {type_right}")
+
+        return f"{repr_left} {self.visit_op(node.ops[0])} {repr_comparators}"
 
     def visit_List(self, node: ast.List, repr_ctx: ReprVisitContext):
         if repr_ctx.return_type:

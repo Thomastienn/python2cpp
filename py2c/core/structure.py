@@ -14,6 +14,12 @@ class Function(BaseModel):
 
 
 type VarType = str | list[VarType]
+
+# TODO: Use this in the future
+# class VarType(BaseModel):
+#     base_type: str
+#     sub_types: list[VarType] = []
+
 class Variable(BaseModel):
     name: str
     is_param: bool = False
