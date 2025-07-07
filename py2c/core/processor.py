@@ -239,12 +239,11 @@ class ExprParser:
                         , visit_ctx.current_indent)
         return "None"
 
+    # This suppose to be in visitor 
+    # (i dont want to move it becauses it might break everything)
+    # TODO: Try to move it to visitor 
+    # Before that, need lots of unit tests
     def visit_Call(self, node: ast.Call, visit_ctx: VisitContext):
-        # if visit_ctx.is_scanning:
-        #     for arg in node.args:
-        #         if self.should_scan_func(arg, visit_ctx):
-        #             self.visit(arg, visit_ctx)
-
         repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
@@ -278,14 +277,13 @@ class ExprParser:
                 new_visitctx.scope = ["global"]
             else:
                 new_visitctx.scope = visit_ctx.scope
+
         arg_repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
             parser_ctx=new_visitctx,
             expr_node=node
         )
-        # print(repr_ctx.parser_ctx.scope, arg_repr_ctx.parser_ctx.scope, file=sys.stderr)
-        # print(repr_ctx,"\n\n", arg_repr_ctx, file=sys.stderr)
 
         for func_param, arg in zip(func_ast_obj.args.args, node.args):
             # Get the type from argument and pass it to parameter
@@ -308,7 +306,6 @@ class ExprParser:
             is_scanning=visit_ctx.is_scanning
         )
 
-        # print(new_ctx, file=sys.stderr)
         return_type = self.visit(func._ast_object, new_ctx)
         func.return_pytype = return_type
         return return_type

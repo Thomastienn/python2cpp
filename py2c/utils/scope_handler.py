@@ -2,6 +2,7 @@ import sys
 import ast
 
 from py2c.utils.linter import Linter
+from py2c.core.errors import LinterError
 
 
 class ScopeHandler:
@@ -35,7 +36,7 @@ class ScopeHandler:
             # Try to find the function in scope system, but handle case where it doesn't exist yet
             try:
                 return linter.find_scope_by_var(func_name, findVar=False, findFunc=True, scope=current_scope)
-            except KeyError:
+            except LinterError:
                 # If function not found in scope system yet (during scanning), assume global scope
                 return ["global"]
         # if isinstance(node, ast.If):

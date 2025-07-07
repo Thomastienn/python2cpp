@@ -57,5 +57,23 @@ class TestProcessor(unittest.TestCase):
         self.assertEqual(s, "auto [h,i,j] = make_tuple(1, 2, 3);\n", f"{s!r}")
 
 
+    def test_pyfunc(self):
+        node = ast.parse("min(1,2,3)").body[0]
+        s = Utils.capture_output(self.parser.visit, node)
+        self.assertEqual(s, "min({1, 2, 3});\n", f"{s!r}")
+
+        node = ast.parse("min(1,2)").body[0]
+        s = Utils.capture_output(self.parser.visit, node)
+        self.assertEqual(s, "min(1, 2);\n", f"{s!r}")
+
+        node = ast.parse("min([1,2])").body[0]
+        s = Utils.capture_output(self.parser.visit, node)
+        self.assertEqual(s, "min(vector{1, 2});\n", f"{s!r}")
+
+        node = ast.parse("max(1,2,3)").body[0]
+        s = Utils.capture_output(self.parser.visit, node)
+        self.assertEqual(s, "max({1, 2, 3});\n", f"{s!r}")
+
+
 if __name__ == '__main__':
     unittest.main()

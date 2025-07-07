@@ -382,10 +382,13 @@ class ReprVisitor():
                 Utils.template_uses.add(template_name)
                 return f"{template_name.lower()}({self.visit(node.args[0], new_ctx)})"
 
+        if func_name in ["min", "max"]:
+            wrap = len(node.args) > 2
+            return f"{func_name}({"{" if wrap else ""}{', '.join(self.visit(arg, new_ctx) for arg in node.args)}{"}" if wrap else ""})"
+
         # This is not a builtin function, so we need to handle it
         return None
             
-    # TODO: This shouldn't be here, we will move it back to processor.py
     def visit_Call(self, node: ast.Call, repr_ctx: ReprVisitContext):
         if repr_ctx.parser_ctx.is_scanning:
             if repr_ctx.processor.should_scan_func(node, repr_ctx.parser_ctx):
