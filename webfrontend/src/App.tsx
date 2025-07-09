@@ -33,16 +33,16 @@ const validateInputSize = (content: string): boolean => {
     return new Blob([content]).size <= SECURITY_CONFIG.MAX_INPUT_SIZE;
 };
 
-const validateFileType = (fileName: string): boolean => {
-    const extension = fileName
-        .toLowerCase()
-        .substring(fileName.lastIndexOf('.'));
-    return SECURITY_CONFIG.ALLOWED_FILE_TYPES.includes(extension);
-};
-
-const validateFileSize = (file: File): boolean => {
-    return file.size <= SECURITY_CONFIG.MAX_FILE_SIZE;
-};
+// const validateFileType = (fileName: string): boolean => {
+//     const extension = fileName
+//         .toLowerCase()
+//         .substring(fileName.lastIndexOf('.'));
+//     return SECURITY_CONFIG.ALLOWED_FILE_TYPES.includes(extension);
+// };
+//
+// const validateFileSize = (file: File): boolean => {
+//     return file.size <= SECURITY_CONFIG.MAX_FILE_SIZE;
+// };
 
 const validatePythonCode = (code: string): string | null => {
     // Check for dangerous imports (basic heuristic)
@@ -207,10 +207,7 @@ export function App() {
                 </div>
             )}
             <h1 className="main-header">Py2Cpp</h1>
-            <FuncTab
-                funcConvert={convertPythonToCpp}
-                funcReset={resetEditors}
-            />
+            <FuncTab funcConvert={convertPythonToCpp} />
             <PresetSelector onSelectPreset={setPyCode} />
             <div className="editor">
                 <MyEditor
