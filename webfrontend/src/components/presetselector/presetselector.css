@@ -1,0 +1,33 @@
+.preset-selector-container {
+    margin-left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.preset-selector-container label {
+    font-size: 1em;
+    color: #eee;
+}
+
+.preset-selector-container select {
+    padding: 8px 12px;
+    border-radius: 0.75rem;
+    border: 1px solid #555;
+    background-color: #333;
+    color: #eee;
+    font-size: 0.9em;
+    cursor: pointer;
+    outline: none;
+}
+
+.preset-selector-container select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.preset-selector-container option {
+    background-color: #333;
+    color: #eee;
+}

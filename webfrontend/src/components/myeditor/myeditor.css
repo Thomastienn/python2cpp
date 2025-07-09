@@ -53,6 +53,7 @@
     0% {
         transform: translate(-50%, -50%) rotate(0deg);
     }
+
     100% {
         transform: translate(-50%, -50%) rotate(360deg);
     }
@@ -80,4 +81,31 @@
 
 .actual-editor.drag-over {
     border: 2px dashed #ffffffaa;
+}
+
+.editor-actions {
+    position: absolute;
+    top: 0.5rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.25rem;
+    /* Space between buttons */
+    z-index: 10;
+}
+
+.util-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 5px;
+    padding: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: background 0.3s ease;
+}
+
+.util-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
 }

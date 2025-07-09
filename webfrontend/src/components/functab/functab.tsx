@@ -3,14 +3,10 @@ import { useState } from 'react';
 
 export interface FuncTabProps {
     funcConvert: () => Promise<void>;
-    funcReset: () => void;
-    funcUpload: () => void;
 }
 
 export const FuncTab = ({
     funcConvert,
-    funcReset,
-    funcUpload,
 }: FuncTabProps) => {
     const [isConverting, setIsConverting] = useState(false);
     const handleConvert = async () => {
@@ -27,12 +23,8 @@ export const FuncTab = ({
             >
                 Convert
             </button>
-            <button className="func-btn func-upload" onClick={funcUpload}>
-                Upload File
-            </button>
-            <button className="func-btn func-reset" onClick={funcReset}>
-                Reset
-            </button>
+            
+            
         </div>
     );
 };

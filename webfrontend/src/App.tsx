@@ -2,6 +2,7 @@ import './App.css';
 import { FuncTab } from './components/functab/functab';
 import { MyEditor } from './components/myeditor/myeditor';
 import { SpeedInsights } from '@vercel/speed-insights/react';
+import { PresetSelector } from './components/presetselector/presetselector';
 import { Analytics } from '@vercel/analytics/react';
 
 import { useState } from 'react';
@@ -73,7 +74,8 @@ const sanitizeErrorMessage = (error: string): string => {
 };
 
 export function App() {
-    const defaultPyCode = '# Python code goes here';
+    const defaultPyCode =
+        '# Python code goes here. Drag and drop if you need to';
     const defaultCppCode = '// C++ code will be generated here';
 
     const [pyCode, setPyCode] = useState<string>(defaultPyCode);
@@ -182,70 +184,6 @@ export function App() {
         setCppCode(defaultCppCode);
     };
 
-    const funcUpload = () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = SECURITY_CONFIG.ALLOWED_FILE_TYPES.join(',');
-        input.onchange = async (event) => {
-            const file = (event.target as HTMLInputElement).files?.[0];
-            if (!file) return;
-
-            // Security validations for file upload
-            if (!validateFileType(file.name)) {
-                alert(
-                    `Invalid file type. Only ${SECURITY_CONFIG.ALLOWED_FILE_TYPES.join(', ')} files are allowed.`,
-                );
-                return;
-            }
-
-            if (!validateFileSize(file)) {
-                alert(
-                    `File size exceeds maximum limit of ${SECURITY_CONFIG.MAX_FILE_SIZE / 1024}KB.`,
-                );
-                return;
-            }
-
-            try {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const content = e.target?.result as string;
-
-                    // Validate content size after reading
-                    if (!validateInputSize(content)) {
-                        alert(
-                            `File content exceeds maximum size limit of ${SECURITY_CONFIG.MAX_INPUT_SIZE / 1024}KB.`,
-                        );
-                        return;
-                    }
-
-                    // Validate Python code
-                    const codeValidationError = validatePythonCode(content);
-                    if (codeValidationError) {
-                        if (
-                            confirm(
-                                `Warning: ${codeValidationError}\n\nDo you want to load this file anyway?`,
-                            )
-                        ) {
-                            setPyCode(content);
-                        }
-                    } else {
-                        setPyCode(content);
-                    }
-                };
-
-                reader.onerror = () => {
-                    alert('Error reading file. Please try again.');
-                };
-
-                reader.readAsText(file);
-            } catch (error) {
-                console.error('File upload error:', error);
-                alert('Failed to read file. Please try again.');
-            }
-        };
-        input.click();
-    };
-
     const [isOpenNoti, setIsOpenNoti] = useState<boolean>(true);
 
     return (
@@ -271,15 +209,16 @@ export function App() {
             <h1 className="main-header">Py2Cpp</h1>
             <FuncTab
                 funcConvert={convertPythonToCpp}
-                funcUpload={funcUpload}
                 funcReset={resetEditors}
             />
+            <PresetSelector onSelectPreset={setPyCode} />
             <div className="editor">
                 <MyEditor
                     code={pyCode}
                     setCode={setPyCode}
                     language="python"
                     pending={false}
+                    funcReset={resetEditors}
                 />
                 <MyEditor
                     code={cppCode}

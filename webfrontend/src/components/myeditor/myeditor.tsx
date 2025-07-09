@@ -1,12 +1,14 @@
 import './myeditor.css';
 import { Editor } from '@monaco-editor/react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { Copy, Upload, RotateCcw, Download } from 'lucide-react';
 
 export interface MyEditorProps {
     code?: string;
     setCode: (code: string) => void;
     language: 'python' | 'cpp';
     pending: boolean;
+    funcReset?: () => void;
 }
 
 export const MyEditor = ({
@@ -14,9 +16,65 @@ export const MyEditor = ({
     setCode,
     language,
     pending,
+    funcReset,
 }: MyEditorProps) => {
     code = code || '';
     const [isDragOver, setIsDragOver] = useState(false);
+    const [isHovered, setIsHovered] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+
+            // Security validations
+            const allowedTypes = ['.py'];
+            const fileExtension = file.name
+                .toLowerCase()
+                .substring(file.name.lastIndexOf('.'));
+
+            if (!allowedTypes.includes(fileExtension)) {
+                alert(
+                    `Invalid file type. Only ${allowedTypes.join(', ')} files are allowed.`,
+                );
+                return;
+            }
+
+            const maxFileSize = 50 * 1024; // 50KB
+            if (file.size > maxFileSize) {
+                alert(
+                    `File size exceeds maximum limit of ${maxFileSize / 1024}KB.`,
+                );
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target?.result as string;
+
+                // Validate content size
+                const maxContentSize = 10 * 1024; // 10KB
+                if (new Blob([content]).size > maxContentSize) {
+                    alert(
+                        `File content exceeds maximum size limit of ${maxContentSize / 1024}KB.`,
+                    );
+                    return;
+                }
+
+                setCode(content);
+            };
+            reader.onerror = () => {
+                alert('Error reading file. Please try again.');
+            };
+            reader.readAsText(file);
+        }
+    };
 
     const handleDragEnter = (e: React.DragEvent) => {
         if (language === 'python') {
@@ -64,47 +122,79 @@ export const MyEditor = ({
                 alert('Please drop only one file at a time.');
                 return;
             }
-            
+
             if (files.length > 0) {
                 const file = files[0];
-                
+
                 // Security validations for drag and drop
                 const allowedTypes = ['.py'];
-                const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-                
+                const fileExtension = file.name
+                    .toLowerCase()
+                    .substring(file.name.lastIndexOf('.'));
+
                 if (!allowedTypes.includes(fileExtension)) {
-                    alert(`Invalid file type. Only ${allowedTypes.join(', ')} files are allowed.`);
+                    alert(
+                        `Invalid file type. Only ${allowedTypes.join(', ')} files are allowed.`,
+                    );
                     return;
                 }
-                
+
                 const maxFileSize = 50 * 1024; // 50KB
                 if (file.size > maxFileSize) {
-                    alert(`File size exceeds maximum limit of ${maxFileSize / 1024}KB.`);
+                    alert(
+                        `File size exceeds maximum limit of ${maxFileSize / 1024}KB.`,
+                    );
                     return;
                 }
-                
+
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const content = event.target?.result as string;
-                    
+
                     // Validate content size
                     const maxContentSize = 10 * 1024; // 10KB
                     if (new Blob([content]).size > maxContentSize) {
-                        alert(`File content exceeds maximum size limit of ${maxContentSize / 1024}KB.`);
+                        alert(
+                            `File content exceeds maximum size limit of ${maxContentSize / 1024}KB.`,
+                        );
                         return;
                     }
-                    
+
                     setCode(content);
                 };
-                
+
                 reader.onerror = () => {
                     alert('Error reading file. Please try again.');
                 };
-                
+
                 reader.readAsText(file);
             }
         }
     };
+    const handleCopy = () => {
+        navigator.clipboard.writeText(code);
+        setIsCopied(true);
+        setTimeout(() => {
+            setIsCopied(false);
+        }, 2000);
+    };
+
+    const handleDownload = () => {
+        const filename =
+            language === 'python' ? 'python_code.py' : 'cpp_code.cpp';
+        const blob = new Blob([code || ''], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const btnSize = 20;
+
     return (
         <div
             className={`actual-editor ${pending ? 'pending' : ''} ${isDragOver && language === 'python' ? 'drag-over' : ''}`}
@@ -112,6 +202,8 @@ export const MyEditor = ({
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
             <Editor
                 height="100%"
@@ -143,6 +235,49 @@ export const MyEditor = ({
                     tabSize: 4,
                     insertSpaces: true,
                 }}
+            />
+            {isHovered && (
+                <div className="editor-actions">
+                    {language === 'cpp' && (
+                        <button
+                            className="util-btn copy-button"
+                            onClick={handleCopy}
+                        >
+                            {isCopied ? 'Copied!' : <Copy size={btnSize} />}
+                        </button>
+                    )}
+                    {language === 'cpp' && (
+                        <button
+                            className="util-btn download-button"
+                            onClick={handleDownload}
+                        >
+                            <Download size={btnSize} />
+                        </button>
+                    )}
+                    {language === 'python' && (
+                        <button
+                            className="util-btn upload-button"
+                            onClick={handleUploadClick}
+                        >
+                            <Upload size={btnSize} />
+                        </button>
+                    )}
+                    {language === 'python' && funcReset && (
+                        <button
+                            className="util-btn reset-button"
+                            onClick={funcReset}
+                        >
+                            <RotateCcw size={btnSize} />
+                        </button>
+                    )}
+                </div>
+            )}
+            <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+                accept=".py"
             />
         </div>
     );
