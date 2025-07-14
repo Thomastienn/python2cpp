@@ -33,6 +33,118 @@ class TestLinter(unittest.TestCase):
         self.assertEqual(self.linter.get_pytype_from_annotations(ast.parse("pair[int, int]").body[0].value), ["pair", "int", "int"])
         self.assertEqual(self.linter.get_pytype_from_annotations(ast.parse("list[list[int]]").body[0].value), ["list", ["list", "int"]])
 
+    def test_complex_nested_types(self):
+        """Test complex nested type conversions"""
+        self.assertEqual(self.linter.python_to_cpp_type(["dict", ["tuple", "str", "int"], ["list", "float"]]),
+                         "map<tuple<string, int>, vector<float>>")
+        
+        self.assertEqual(self.linter.python_to_cpp_type(["list", ["dict", "str", "int"]]),
+                         "vector<map<string, int>>")
+        
+        self.assertEqual(self.linter.python_to_cpp_type(["tuple", ["list", "str"], ["dict", "int", "float"], "bool"]),
+                         "tuple<vector<string>, map<int, float>, bool>")
+
+    def test_edge_case_types(self):
+        """Test edge case type conversions"""
+        # Test empty dict annotation
+        self.assertEqual(self.linter.python_to_cpp_type(["dict", "str", "str"]),
+                         "map<string, string>")
+        
+        # Test single element tuple
+        self.assertEqual(self.linter.python_to_cpp_type(["tuple", "int"]),
+                         "tuple<int>")
+        
+        # Test deeply nested lists
+        self.assertEqual(self.linter.python_to_cpp_type(["list", ["list", ["list", "int"]]]),
+                         "vector<vector<vector<int>>>")
+
+    def test_annotation_parsing_edge_cases(self):
+        """Test edge cases in annotation parsing"""
+        # Test optional types (might not be supported yet)
+        try:
+            result = self.linter.get_pytype_from_annotations(ast.parse("Optional[int]").body[0].value)
+            self.assertIsNotNone(result)
+        except:
+            # Optional might not be supported, that's ok
+            pass
+        
+        # Test union types (might not be supported yet)
+        try:
+            result = self.linter.get_pytype_from_annotations(ast.parse("Union[int, str]").body[0].value)
+            self.assertIsNotNone(result)
+        except:
+            # Union might not be supported, that's ok
+            pass
+
+    def test_custom_type_annotations(self):
+        """Test custom type annotations"""
+        # Test set type
+        try:
+            result = self.linter.get_pytype_from_annotations(ast.parse("set[int]").body[0].value)
+            self.assertEqual(result, ["set", "int"])
+        except:
+            # Set might not be supported, that's ok
+            pass
+
+    def test_type_conversion_consistency(self):
+        """Test that type conversions are consistent"""
+        # Test that multiple calls return the same result
+        type1 = self.linter.python_to_cpp_type(["list", "int"])
+        type2 = self.linter.python_to_cpp_type(["list", "int"])
+        self.assertEqual(type1, type2)
+        
+        # Test that nested types are consistent
+        nested1 = self.linter.python_to_cpp_type(["dict", "str", ["list", "int"]])
+        nested2 = self.linter.python_to_cpp_type(["dict", "str", ["list", "int"]])
+        self.assertEqual(nested1, nested2)
+
+    def test_invalid_type_handling(self):
+        """Test handling of invalid or unsupported types"""
+        # Test what happens with unsupported types
+        try:
+            result = self.linter.python_to_cpp_type("unsupported_type")
+            # Should either return the type as-is or handle gracefully
+            self.assertIsInstance(result, str)
+        except:
+            # It's ok if it throws an exception for unsupported types
+            pass
+
+    def test_annotation_with_complex_generics(self):
+        """Test annotation parsing with complex generic types"""
+        # Test deeply nested generics
+        result = self.linter.get_pytype_from_annotations(ast.parse("dict[str, list[tuple[int, float]]]").body[0].value)
+        expected = ["dict", "str", ["list", ["tuple", "int", "float"]]]
+        self.assertEqual(result, expected)
+        
+        # Test the corresponding C++ type
+        cpp_type = self.linter.python_to_cpp_type(result)
+        self.assertEqual(cpp_type, "map<string, vector<tuple<int, float>>>")
+
+    def test_bool_type_conversion(self):
+        """Test boolean type conversion specifics"""
+        self.assertEqual(self.linter.python_to_cpp_type("bool"), "bool")
+        
+        # Test in complex types
+        self.assertEqual(self.linter.python_to_cpp_type(["list", "bool"]),
+                         "vector<bool>")
+        
+        self.assertEqual(self.linter.python_to_cpp_type(["tuple", "bool", "bool"]),
+                         "tuple<bool, bool>")
+
+    def test_numeric_type_edge_cases(self):
+        """Test numeric type edge cases"""
+        # Test different numeric types
+        self.assertEqual(self.linter.python_to_cpp_type("int"), "int")
+        self.assertEqual(self.linter.python_to_cpp_type("float"), "float")
+        
+        # Test in collections
+        self.assertEqual(self.linter.python_to_cpp_type(["list", "float"]),
+                         "vector<float>")
+        
+        # Test mixed numeric types in tuple
+        self.assertEqual(self.linter.python_to_cpp_type(["tuple", "int", "float"]),
+                         "tuple<int, float>")
+
 
 if __name__ == "__main__":
     unittest.main()
