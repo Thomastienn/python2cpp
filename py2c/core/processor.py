@@ -194,10 +194,15 @@ class ExprParser:
                     # Theres an error with the type
                     if type_var_err is not None:
                         raise ParserError(str(type_var_err))
-                    # At least one variable is new, declare with auto
+                    # At least one variable is new
+                    # This is destructuring assignment
+                    real_element_type = type_name_val[1:]
+                    if len(real_element_type) == 1:
+                        real_element_type = real_element_type[0]
+
                     for target_s in target_vars:
                         if not self.already_declared(target_s, visit_ctx):
-                            self.linter.add_var(target_s, type_name_val, scope=visit_ctx.scope)
+                            self.linter.add_var(target_s, real_element_type, scope=visit_ctx.scope)
                             self.set_type(target_s, visit_ctx.scope)
                     self.print_line(f"auto [{target_str}] = {value_str};", visit_ctx.current_indent)
             elif self.already_declared(target_str, visit_ctx) or \
