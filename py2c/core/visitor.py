@@ -1,3 +1,24 @@
+"""
+Python AST Node Representation Visitor
+
+This module contains the ReprVisitor class, which is responsible for converting
+Python AST nodes into their C++ string representations. It handles:
+
+- Expression evaluation and type inference
+- Built-in Python function translations
+- Operator mapping from Python to C++
+- Data structure conversions (lists, tuples, dictionaries)
+- Function call processing
+- Literal value conversions
+
+The ReprVisitor works closely with the Linter class to perform type checking
+and variable resolution during the conversion process.
+
+Author: Thomas Tien
+Project: py2cpp - Python to C++ Converter
+License: MIT
+"""
+
 import sys
 import ast
 import io
@@ -14,13 +35,55 @@ from py2c.core.errors import VisitorError, UserError, LinterError
 
 
 class ReprVisitor():
+    """
+    Visitor class for converting Python AST nodes to C++ string representations.
+    
+    This class handles the conversion of Python expressions, statements, and
+    constructs into their C++ equivalents. It performs type inference and
+    manages the generation of appropriate C++ code for various Python features.
+    
+    Attributes:
+        linter (Linter): The linter instance for type checking and variable management
+        logger (Logger): Logger instance for debugging and error reporting
+    
+    Key responsibilities:
+        - Converting Python literals to C++ literals
+        - Handling built-in Python functions and their C++ equivalents
+        - Managing operator translations
+        - Processing data structures (lists, tuples, dicts, sets)
+        - Handling control flow expressions
+        - Managing function calls and method invocations
+    """
+    
     def __init__(self, linter: Linter):
+        """
+        Initialize the representation visitor.
+        
+        Args:
+            linter (Linter): The linter instance for type checking and variable management
+        """
         self.linter = linter
         self.logger = setup_logger("py2cpp.visitor")
 
     def get_type_from_pyfunction(self, func_node: ast.Call, repr_ctx: ReprVisitContext) -> str:
         """
-            Return the return pytype of a builtin function
+        Determine the return type of a Python built-in function.
+        
+        This method analyzes built-in Python functions and returns their
+        expected return types for C++ code generation.
+        
+        Args:
+            func_node (ast.Call): The function call AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str: The Python type name that the function returns
+        
+        Supported Functions:
+            - Type constructors (int, float, str, list, etc.)
+            - Built-in functions (len, min, max, input, etc.)
+            - Character/string functions (ord, chr)
+            - Iterator functions (map)
         """
         func_name = func_node.func.id
         if func_name in Linter.TYPES:
@@ -55,16 +118,48 @@ class ReprVisitor():
         return "Unknown"
 
     def call_print_parser(self, text:str, repr_ctx: ReprVisitContext, indent=None, end="\n"):
+        """
+        Helper method to print text through the processor.
+        
+        Args:
+            text (str): Text to print
+            repr_ctx (ReprVisitContext): Current representation context
+            indent (int, optional): Indentation level (defaults to current indent)
+            end (str): Line ending character (default: newline)
+        """
         if indent is None:
             indent = repr_ctx.parser_ctx.current_indent
         repr_ctx.processor.print_line(text, indent, end=end)
         
     def visit(self, node: ast.AST, repr_ctx: ReprVisitContext) -> str | list[str]:
+        """
+        Visit an AST node and return its C++ string representation.
+        
+        This is the main entry point for converting AST nodes to C++ code.
+        It uses dynamic dispatch to call the appropriate visit method.
+        
+        Args:
+            node (ast.AST): The AST node to visit
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str | list[str]: The C++ representation of the node, or type information
+        """
         method_name = f"visit_{type(node).__name__}"
         visit_method = getattr(self, method_name, self.generic_visit)
         return visit_method(node, repr_ctx)
 
     def visit_Constant(self, node: ast.Constant, repr_ctx: ReprVisitContext):
+        """
+        Process Python constant literals (numbers, strings, booleans, None).
+        
+        Args:
+            node (ast.Constant): The constant AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str: C++ representation of the constant or its type name
+        """
         if repr_ctx.return_type:
             return type(node.value).__name__
         node_repr = repr(node.value)
@@ -73,6 +168,16 @@ class ReprVisitor():
         return node_repr.replace("\'", "\"")
 
     def check_add_global_var(self, var_name: str, repr_ctx: ReprVisitContext):
+        """
+        Check if a variable should be added to the global scope.
+        
+        This method determines if a variable accessed in a function scope
+        should be declared as a global variable in the generated C++ code.
+        
+        Args:
+            var_name (str): Name of the variable to check
+            repr_ctx (ReprVisitContext): Current representation context
+        """
         if not repr_ctx.parser_ctx.is_scanning:
             return
         try:
@@ -91,6 +196,19 @@ class ReprVisitor():
             self.linter.actual_global_vars.add(var)
 
     def visit_Name(self, node: ast.Name, repr_ctx: ReprVisitContext):
+        """
+        Process Python variable names and identifiers.
+        
+        Args:
+            node (ast.Name): The name AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str: Variable name or its type information
+        
+        Raises:
+            VisitorError: If variable is not found in scope (non-scanning mode)
+        """
         self.check_add_global_var(node.id, repr_ctx)
             
         if repr_ctx.return_type:
@@ -109,6 +227,16 @@ class ReprVisitor():
         return node.id
 
     def visit_Tuple(self, node: ast.Tuple, repr_ctx: ReprVisitContext):
+        """
+        Process Python tuple literals and tuple unpacking.
+        
+        Args:
+            node (ast.Tuple): The tuple AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str | list[str]: C++ tuple representation or type information
+        """
         if repr_ctx.return_type:
             new_ctx = ReprVisitContext(
                 processor=repr_ctx.processor,
@@ -136,6 +264,18 @@ class ReprVisitor():
         return f"make_tuple({', '.join(self.visit(el, new_ctx) for el in node.elts)})"
 
     def visit_Subscript(self, node: ast.Subscript, repr_ctx: ReprVisitContext):
+        """
+        Process Python subscript operations (indexing and slicing).
+        
+        Handles both simple indexing (arr[0]) and slicing (arr[1:3:2]).
+        
+        Args:
+            node (ast.Subscript): The subscript AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str: C++ subscript/slice representation or type information
+        """
         new_ctx = ReprVisitContext(
             processor = repr_ctx.processor,
             parser_ctx = repr_ctx.parser_ctx,
@@ -200,6 +340,19 @@ class ReprVisitor():
                 
 
     def visit_BinOp(self, node: ast.BinOp, repr_ctx: ReprVisitContext):
+        """
+        Process Python binary operations (+, -, *, /, etc.).
+        
+        Handles special cases like list repetition and power operations
+        that require custom C++ templates.
+        
+        Args:
+            node (ast.BinOp): The binary operation AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str: C++ binary operation representation or type information
+        """
         if repr_ctx.parser_ctx.is_scanning:
             if repr_ctx.processor.should_scan_func(node.left, repr_ctx.parser_ctx):
                 repr_ctx.processor.visit(node.left, repr_ctx.parser_ctx)
@@ -291,6 +444,29 @@ class ReprVisitor():
         return self.linter.is_list_repeatition(type_left, type_right, "*")
 
     def handle_pyfunc(self, node: ast.Call, repr_ctx: ReprVisitContext):
+        """
+        Handle Python built-in function calls and convert them to C++.
+        
+        This method processes various Python built-in functions and generates
+        appropriate C++ code, including template usage when necessary.
+        
+        Args:
+            node (ast.Call): The function call AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str | None: The C++ representation of the function call, or None if not handled
+        
+        Supported Functions:
+            - len(): Convert to .size() or tuple_size template
+            - print(): Convert to cout statements
+            - input(): Convert to cinput template
+            - map(): Convert to loop or cmap template
+            - Type casts (int, str, etc.)
+            - ord/chr: Character/ASCII conversions
+            - reversed(): Convert to reverse iterator or crev template
+            - min/max: Direct translation to C++ equivalents
+        """
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
             parser_ctx=repr_ctx.parser_ctx,
@@ -390,6 +566,22 @@ class ReprVisitor():
         return None
             
     def visit_Call(self, node: ast.Call, repr_ctx: ReprVisitContext):
+        """
+        Process Python function calls.
+        
+        Handles both built-in Python functions and user-defined functions,
+        converting them to appropriate C++ equivalents.
+        
+        Args:
+            node (ast.Call): The function call AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str: C++ function call representation or type information
+        
+        Raises:
+            NotImplementedError: If the function call type is not supported
+        """
         if repr_ctx.parser_ctx.is_scanning:
             if repr_ctx.processor.should_scan_func(node, repr_ctx.parser_ctx):
                 repr_ctx.processor.visit(node, repr_ctx.parser_ctx)
@@ -425,6 +617,19 @@ class ReprVisitor():
         return result_str
 
     def handle_pyattr(self, node_name:str, attr_name: str):
+        """
+        Handle Python attribute access and method calls.
+        
+        Args:
+            node_name (str): The object name
+            attr_name (str): The attribute/method name
+        
+        Returns:
+            str: C++ equivalent of the attribute/method call
+        
+        Raises:
+            NotImplementedError: If the attribute is not implemented
+        """
         if attr_name == "sort":
             # TODO: Handle key of sort (use lambda func)
             return f"sort({node_name}.begin(), {node_name}.end())"
@@ -441,6 +646,16 @@ class ReprVisitor():
         raise NotImplementedError("This python attribute is not implemented yet: " + attr_name)
 
     def visit_Attribute(self, node: ast.Attribute, repr_ctx: ReprVisitContext):
+        """
+        Process Python attribute access (obj.attr).
+        
+        Args:
+            node (ast.Attribute): The attribute AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str: C++ attribute access representation or type information
+        """
         if repr_ctx.return_type:
             # We need to know the type of the one using this attribute first
             new_ctx = ReprVisitContext(
@@ -465,6 +680,35 @@ class ReprVisitor():
             return f"{self.visit(node.value, new_ctx)}.{node.attr}"
 
     def visit_ListComp(self, node: ast.ListComp, repr_ctx: ReprVisitContext):
+        """
+        Process Python list comprehensions.
+        
+        Converts list comprehensions to C++ lambda expressions that construct
+        and return vectors. Handles nested generators and conditional filters.
+        
+        Args:
+            node (ast.ListComp): The list comprehension AST node
+            repr_ctx (ReprVisitContext): Current representation context
+        
+        Returns:
+            str | list[str]: C++ lambda expression for the list comprehension
+                           or type information (["list", element_type])
+        
+        Examples:
+            Python: [x * 2 for x in range(10) if x % 2 == 0]
+            C++: [&] {
+                vector<int> parent;
+                for (int i = 0; i < 10; i++) {
+                    if (i % 2 == 0) {
+                        parent.push_back(i * 2);
+                    }
+                }
+                return parent;
+            }()
+        
+        Raises:
+            VisitorError: If generator is not a comprehension
+        """
         if repr_ctx.return_type:
             new_ctx = ReprVisitContext(
                 processor=repr_ctx.processor,

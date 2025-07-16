@@ -1,3 +1,25 @@
+"""
+Python AST Expression Parser and Processor
+
+This module contains the core ExprParser class responsible for processing Python
+Abstract Syntax Tree (AST) nodes and converting them to C++ equivalents. It handles
+various Python constructs including:
+
+- Variable assignments and declarations
+- Function definitions and calls
+- Control flow statements (if, for, while)
+- Data structures (lists, tuples, dictionaries)
+- Expressions and operators
+- Type inference and management
+
+The ExprParser works in conjunction with the Linter and ReprVisitor classes to
+perform semantic analysis and code generation.
+
+Author: Thomas Tien
+Project: py2cpp - Python to C++ Converter
+License: MIT
+"""
+
 import os
 import sys
 import ast
@@ -15,7 +37,28 @@ from py2c.core.errors import ErrorUsage, UserError, ParserError, LinterError, Vi
 
 
 class ExprParser:
+    """
+    Main AST processor for converting Python expressions to C++ code.
+    
+    This class is responsible for traversing Python AST nodes and generating
+    equivalent C++ code. It handles type inference, scope management, and
+    code generation for various Python constructs.
+    
+    Attributes:
+        linter (Linter): Type checking and variable management system
+        repr (ReprVisitor): Expression representation visitor
+        allow_print (bool): Whether to output generated code
+        num_for (int): Counter for for loop nesting levels
+        logger (Logger): Logging instance for debug output
+    """
+    
     def __init__(self, funcs: dict[str, Function]):
+        """
+        Initialize the expression parser.
+        
+        Args:
+            funcs (dict[str, Function]): Dictionary mapping function names to Function objects
+        """
         self.linter = Linter(funcs)
         self.repr = ReprVisitor(self.linter)
         self.allow_print = True
@@ -24,12 +67,30 @@ class ExprParser:
         self.logger = setup_logger("py2cpp.processor")
 
     def should_scan_func(self, node: ast.AST, visit_ctx: VisitContext):
+        """
+        Check if a function call should be scanned during the pre-processing phase.
+        
+        Args:
+            node (ast.AST): The AST node to check
+            visit_ctx (VisitContext): Current visiting context
+        
+        Returns:
+            bool: True if the function should be scanned, False otherwise
+        """
         return isinstance(node, ast.Call) and \
             isinstance(node.func, ast.Name) and node.func.id in self.linter.funcs and \
             (self.linter.funcs[node.func.id].return_pytype is None) and \
             node.func.id not in visit_ctx.scope
 
     def print_line(self, line: str, current_indent: int, end="\n"):
+        """
+        Print a line of C++ code with proper indentation.
+        
+        Args:
+            line (str): The line of code to print
+            current_indent (int): Current indentation level
+            end (str): Line ending character (default: newline)
+        """
         if self.allow_print:
             print((constants.TAB * current_indent) + line, end=end)
         else:
@@ -44,6 +105,19 @@ class ExprParser:
         raise ErrorUsage("You are not supposed to end up here")
         
     def visit(self, node: ast.AST, visit_ctx: VisitContext = VisitContext()):
+        """
+        Visit an AST node and dispatch to the appropriate visitor method.
+        
+        This is the main entry point for processing AST nodes. It uses dynamic
+        dispatch to call the appropriate visit_* method based on the node type.
+        
+        Args:
+            node (ast.AST): The AST node to visit
+            visit_ctx (VisitContext): Context information for the visit
+        
+        Returns:
+            Any: The result of the visitor method (usually a type string)
+        """
         if visit_ctx.allow_print is None:
             allow_print = self.allow_print
         else:
@@ -71,18 +145,52 @@ class ExprParser:
         return result
 
     def generic_visit(self, node, visit_ctx: VisitContext):
+        """
+        Default visitor method for unimplemented AST nodes.
+        
+        Args:
+            node (ast.AST): The unimplemented AST node
+            visit_ctx (VisitContext): Current visiting context
+        
+        Returns:
+            None: Always returns None after logging the error
+        """
         self.logger.error("NOT IMPLEMENTED: %s", node)
         return
 
     def set_type(self, name, scope):
+        """
+        Mark a variable as having its type set (for code generation).
+        
+        Args:
+            name (str): Variable name
+            scope (list[str]): Scope path where the variable is located
+        """
         if self.allow_print:
             self.linter.set_has_type(name, scope)
 
     def unset_type(self, name, scope):
+        """
+        Mark a variable as not having its type set.
+        
+        Args:
+            name (str): Variable name
+            scope (list[str]): Scope path where the variable is located
+        """
         if self.allow_print:
             self.linter.unset_has_type(name, scope)
 
     def already_declared(self, name, visit_ctx: VisitContext):
+        """
+        Check if a variable has already been declared in the current scope.
+        
+        Args:
+            name (str): Variable name to check
+            visit_ctx (VisitContext): Current visiting context
+        
+        Returns:
+            bool: True if the variable has been declared, False otherwise
+        """
         # TODO: Check if we want to bubble up in the scope
         # Sometimes it's ambiguous
 
@@ -124,7 +232,22 @@ class ExprParser:
             self.print_line(f"{self.linter.python_to_cpp_type(type_)} {target_str} = {value_str};", visit_ctx.current_indent)
 
     def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
-
+        """
+        Handle Python assignment statements and convert them to C++.
+        
+        This method processes various types of assignments including:
+        - Simple assignments (a = 1)
+        - Tuple unpacking (a, b = (1, 2))
+        - Subscript assignments (arr[0] = value)
+        - Multiple assignments (a = b = 1)
+        
+        Args:
+            node (ast.Assign): The assignment AST node
+            visit_ctx (VisitContext): Current visiting context
+        
+        Returns:
+            str: Always returns "None" as assignments don't return values
+        """
         targets = node.targets
         value = node.value
 
@@ -228,6 +351,16 @@ class ExprParser:
         return "None"
 
     def visit_AugAssign(self, node: ast.AugAssign, visit_ctx: VisitContext):
+        """
+        Handle augmented assignment statements (+=, -=, *=, etc.).
+        
+        Args:
+            node (ast.AugAssign): The augmented assignment AST node
+            visit_ctx (VisitContext): Current visiting context
+        
+        Returns:
+            str: Always returns "None" as augmented assignments don't return values
+        """
         # if visit_ctx.is_scanning:
         #     if self.should_scan_func(node.value, visit_ctx):
         #         self.visit(node.value, visit_ctx)
@@ -249,6 +382,19 @@ class ExprParser:
     # TODO: Try to move it to visitor 
     # Before that, need lots of unit tests
     def visit_Call(self, node: ast.Call, visit_ctx: VisitContext):
+        """
+        Handle function call expressions and determine return types.
+        
+        This method processes function calls during the scanning phase to
+        infer return types and manage function signatures.
+        
+        Args:
+            node (ast.Call): The function call AST node
+            visit_ctx (VisitContext): Current visiting context
+        
+        Returns:
+            str: The inferred return type of the function call
+        """
         repr_ctx = ReprVisitContext(
             processor=self,
             return_type=True,
@@ -316,6 +462,15 @@ class ExprParser:
         return return_type
 
     def find_first_return(self, node: ast.AST):
+        """
+        Find the first return statement in an AST node.
+        
+        Args:
+            node (ast.AST): The AST node to search
+        
+        Returns:
+            ast.Return | None: The first return statement found, or None
+        """
         if isinstance(node, ast.Return):
             return node
         if isinstance(node, (ast.If, ast.For, ast.While)):
@@ -328,6 +483,22 @@ class ExprParser:
         return None
                           
     def visit_FunctionDef(self, node: ast.FunctionDef, visit_ctx: VisitContext):
+        """
+        Process function definitions and convert them to C++ function declarations.
+        
+        This method handles:
+        - Function parameter type inference
+        - Return type inference from return statements
+        - Function body processing
+        - Scope management for function parameters
+        
+        Args:
+            node (ast.FunctionDef): The function definition AST node
+            visit_ctx (VisitContext): Current visiting context
+        
+        Returns:
+            str: The inferred return type of the function
+        """
         # print(visit_ctx, file=sys.stderr)
         
         # Ensure the function scope exists in the linter
@@ -418,9 +589,21 @@ class ExprParser:
 
     def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type, node_for: ast.For):
         """
-            Print for i loop
-            PARAMS
-            node: ast.Call which is calling range() func
+        Generate C++ code for a range-based for loop (for i in range(...)).
+        
+        This method converts Python's range() function calls into equivalent
+        C++ for loops with proper start, end, and step values.
+        
+        Args:
+            var (str): Loop variable name
+            node (ast.Call): The range() function call AST node
+            visit_ctx (VisitContext): Current visiting context
+            save_type (bool): Whether to save variable type information
+            node_for (ast.For): The original for loop AST node
+        
+        Raises:
+            UserError: If range() has invalid number of arguments
+            ParserError: If end value cannot be determined
         """
         # if visit_ctx.is_scanning:
         #     for arg in node.args:
@@ -461,6 +644,19 @@ class ExprParser:
         self.print_line(f"for (int {var} = {start}; {var} {compare_sign} {end}; {add_str}) {{", visit_ctx.current_indent)
 
     def print_for_iter(self, var, node: ast.AST, visit_ctx: VisitContext, save_type, node_for: ast.For):
+        """
+        Generate C++ code for iterator-based for loops (for item in iterable).
+        
+        This method converts Python's iterator-based for loops into equivalent
+        C++ range-based for loops, handling type inference for the loop variable.
+        
+        Args:
+            var (str): Loop variable name
+            node (ast.AST): The iterable expression AST node
+            visit_ctx (VisitContext): Current visiting context
+            save_type (bool): Whether to save variable type information
+            node_for (ast.For): The original for loop AST node
+        """
         new_ctx = visit_ctx.copy()
         new_ctx.scope = new_ctx.scope[:-1]
         repr_ctx = ReprVisitContext(
@@ -493,6 +689,17 @@ class ExprParser:
         self.print_line(f"for ({cpp_type} {var} : {self.repr.visit(node, repr_ctx_2)}) {{", visit_ctx.current_indent)
 
     def print_forloop(self, node: ast.For, visit_ctx: VisitContext, save_type=True):
+        """
+        Generate C++ code for Python for loops.
+        
+        This method dispatches to the appropriate loop handler based on whether
+        the loop uses range() or iterates over an iterable.
+        
+        Args:
+            node (ast.For): The for loop AST node
+            visit_ctx (VisitContext): Current visiting context
+            save_type (bool): Whether to save variable type information
+        """
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx=visit_ctx,
@@ -505,6 +712,16 @@ class ExprParser:
             self.print_for_iter(target_visited, node.iter, visit_ctx, save_type, node)
 
     def visit_For(self, node: ast.For, visit_ctx: VisitContext):
+        """
+        Process Python for loops and convert them to C++.
+        
+        This method handles both range-based and iterator-based for loops,
+        managing scope creation and variable declarations.
+        
+        Args:
+            node (ast.For): The for loop AST node
+            visit_ctx (VisitContext): Current visiting context
+        """
         # self.print_line(f"for ({self.repr.visit(node.target)} in {self.repr.visit(node.iter)}) {{", visit_ctx.current_indent)
         self.num_for += 1
         self.print_forloop(node, visit_ctx)
@@ -530,6 +747,16 @@ class ExprParser:
         self.print_line("}", visit_ctx.current_indent)
 
     def visit_If(self, node: ast.If, visit_ctx: VisitContext):
+        """
+        Process Python if statements and convert them to C++.
+        
+        This method handles if-elif-else constructs, converting the test
+        conditions and body statements to equivalent C++ code.
+        
+        Args:
+            node (ast.If): The if statement AST node
+            visit_ctx (VisitContext): Current visiting context
+        """
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx = visit_ctx,
@@ -561,6 +788,13 @@ class ExprParser:
         # self.print_line("END", current_indent)
 
     def visit_Return(self, node: ast.Return, visit_ctx: VisitContext):
+        """
+        Process Python return statements and convert them to C++.
+        
+        Args:
+            node (ast.Return): The return statement AST node
+            visit_ctx (VisitContext): Current visiting context
+        """
         if node.value is None:
             self.print_line("return;", visit_ctx.current_indent)
             return
@@ -572,6 +806,13 @@ class ExprParser:
         self.print_line(f"return {self.repr.visit(node.value, repr_ctx)};", visit_ctx.current_indent)
 
     def visit_While(self, node: ast.While, visit_ctx: VisitContext):
+        """
+        Process Python while loops and convert them to C++.
+        
+        Args:
+            node (ast.While): The while loop AST node
+            visit_ctx (VisitContext): Current visiting context
+        """
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx = visit_ctx,
@@ -589,6 +830,16 @@ class ExprParser:
         self.print_line("}", visit_ctx.current_indent)
 
     def visit_Expr(self, node: ast.Expr, visit_ctx: VisitContext):
+        """
+        Process Python expression statements.
+        
+        Args:
+            node (ast.Expr): The expression statement AST node
+            visit_ctx (VisitContext): Current visiting context
+        
+        Returns:
+            str: The type name of the expression value
+        """
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx=visit_ctx,
@@ -599,22 +850,57 @@ class ExprParser:
         return type(value).__name__
 
     def visit_Break(self, node: ast.Break, visit_ctx: VisitContext):
+        """
+        Process Python break statements.
+        
+        Args:
+            node (ast.Break): The break statement AST node
+            visit_ctx (VisitContext): Current visiting context
+        """
         if visit_ctx.is_scanning:
             return
         self.print_line("break;", visit_ctx.current_indent)
 
     def visit_Continue(self, node: ast.Continue, visit_ctx: VisitContext):
+        """
+        Process Python continue statements.
+        
+        Args:
+            node (ast.Continue): The continue statement AST node
+            visit_ctx (VisitContext): Current visiting context
+        """
         if visit_ctx.is_scanning:
             return
         self.print_line("continue;", visit_ctx.current_indent)
 
     def visit_Pass(self, node: ast.Pass, visit_ctx: VisitContext):
+        """
+        Process Python pass statements (no-op).
+        
+        Args:
+            node (ast.Pass): The pass statement AST node
+            visit_ctx (VisitContext): Current visiting context
+        """
         pass
 
     def visit_Load(self, node: ast.Load, visit_ctx: VisitContext):
+        """
+        Process AST Load context (no action needed).
+        
+        Args:
+            node (ast.Load): The load context AST node
+            visit_ctx (VisitContext): Current visiting context
+        """
         pass
 
     def visit_Store(self, node: ast.Store, visit_ctx: VisitContext):
+        """
+        Process AST Store context (no action needed).
+        
+        Args:
+            node (ast.Store): The store context AST node
+            visit_ctx (VisitContext): Current visiting context
+        """
         pass
 
 # Usage example:

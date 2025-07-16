@@ -1,3 +1,22 @@
+#!/usr/bin/env python3
+"""
+Python to C++ Converter - Command Line Interface
+
+This module provides the main command-line interface for the py2cpp converter.
+It handles argument parsing, file I/O, security validation, and orchestrates
+the conversion process from Python source code to C++ output.
+
+Example usage:
+    python main.py input.py                    # Convert input.py to input.cpp
+    python main.py input.py output.cpp         # Convert with custom output name
+    python main.py input.py --debug            # Enable debug logging
+    python main.py input.py --quiet            # Suppress non-error output
+    
+Author: Thomas Tien
+Project: py2cpp - Python to C++ Converter
+License: MIT
+"""
+
 import os
 import sys
 import ast
@@ -9,7 +28,21 @@ from py2c.utils.logger import setup_logger
 
 
 def create_parser():
-    """Create and configure the argument parser."""
+    """
+    Create and configure the argument parser for the py2cpp command-line tool.
+    
+    Returns:
+        argparse.ArgumentParser: Configured argument parser with all required
+                                 arguments and options for the converter.
+    
+    The parser includes:
+        - input_file: Required positional argument for the Python source file
+        - output_file: Optional positional argument for the C++ output file
+        - --debug: Enable debug logging
+        - --quiet: Suppress non-error output
+        - --version: Show version information
+    """
+    
     parser = argparse.ArgumentParser(
         prog='py2c',
         description='Convert Python code to C++',
@@ -56,7 +89,27 @@ Examples:
 
 
 def run():
-    """Main function to run the converter."""
+    """
+    Main function to run the Python to C++ converter.
+    
+    This function orchestrates the entire conversion process:
+    1. Parses command-line arguments
+    2. Sets up logging and security validation
+    3. Validates input and output file paths
+    4. Reads and validates Python source code
+    5. Converts Python AST to C++ code
+    6. Writes output files and handles errors
+    
+    The function includes comprehensive error handling and security measures
+    to prevent directory traversal attacks, code injection, and resource exhaustion.
+    
+    Raises:
+        SecurityError: If input validation fails or security constraints are violated
+        SystemExit: On various error conditions (file not found, parsing errors, etc.)
+    
+    Returns:
+        None: Function exits with appropriate exit codes on completion or error
+    """
     # If no arguments provided, try to use test.py for backward compatibility
     if len(sys.argv) == 1:
         if os.path.exists("test.py"):
@@ -195,4 +248,5 @@ def run():
 
 
 if __name__ == "__main__":
+    """Entry point for the py2cpp command-line tool."""
     run()

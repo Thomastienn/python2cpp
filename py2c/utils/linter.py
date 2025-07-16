@@ -9,6 +9,25 @@ from py2c.core.errors import LinterError, UserError
 
 
 class Linter:
+    """
+    Type checking and variable management system for Python to C++ conversion.
+    
+    This class handles type inference, variable tracking, and scope management
+    during the conversion process. It maintains information about variables,
+    functions, and their types across different scopes.
+    
+    Class Attributes:
+        TYPES (dict): Mapping of Python types to C++ types
+        CAST_TYPES (dict): Additional type mappings for special cases
+        MAP_VALUE (dict): Mapping of Python literals to C++ equivalents
+    
+    Attributes:
+        typed_vars (dict): Nested dictionary storing variable types by scope
+        has_typed (dict): Tracks which variables have been declared
+        funcs (dict): Dictionary of function metadata
+        actual_global_vars (set): Set of variables that need global declaration
+    """
+    
     TYPES = {
         "int": "int",
         "float": "float",
@@ -34,6 +53,12 @@ class Linter:
     }
 
     def __init__(self, funcs: dict[str, Function]):
+        """
+        Initialize the linter with function definitions.
+        
+        Args:
+            funcs (dict[str, Function]): Dictionary mapping function names to Function objects
+        """
         self.typed_vars = {
             "global": {},
         }
@@ -44,6 +69,15 @@ class Linter:
         self.actual_global_vars = set()
 
     def add_var(self, name, v_type, scope=["global"], **kwargs):
+        """
+        Add a variable to the specified scope.
+        
+        Args:
+            name (str): Variable name
+            v_type (str | list[str]): Variable type
+            scope (list[str]): Scope path where the variable is defined
+            **kwargs: Additional Variable attributes
+        """
         cur_scope = self.typed_vars
         for s in scope:
             if s not in cur_scope:
@@ -57,6 +91,13 @@ class Linter:
         cur_scope[name] = new_var
 
     def set_has_type(self, name, scope=["global"]):
+        """
+        Mark a variable as having been declared (for code generation).
+        
+        Args:
+            name (str): Variable name
+            scope (list[str]): Scope path where the variable is declared
+        """
         cur_scope = self.has_typed
         for s in scope:
             if s not in cur_scope:
@@ -91,6 +132,16 @@ class Linter:
         return False
 
     def does_has_type(self, name, scope=["global"]):
+        """
+        Check if a variable has been declared for code generation.
+        
+        Args:
+            name (str): Variable name
+            scope (list[str]): Scope path to check
+        
+        Returns:
+            bool: True if the variable has been declared, False otherwise
+        """
         cur_scope = self.has_typed
         scope_refs = []
         
@@ -110,6 +161,16 @@ class Linter:
         return False
 
     def unset_has_type(self, name, scope=["global"]):
+        """
+        Mark a variable as not having been declared.
+        
+        Args:
+            name (str): Variable name
+            scope (list[str]): Scope path where the variable is located
+        
+        Raises:
+            LinterError: If the scope is not found
+        """
         cur_scope = self.has_typed
         for s in scope:
             if s not in cur_scope:
@@ -118,6 +179,16 @@ class Linter:
         cur_scope[name] = False
 
     def remove_var(self, name, scope=["global"]):
+        """
+        Remove a variable from the specified scope.
+        
+        Args:
+            name (str): Variable name
+            scope (list[str]): Scope path where the variable is located
+        
+        Raises:
+            LinterError: If the scope is not found
+        """
         cur_scope = self.typed_vars
         for s in scope:
             if s not in cur_scope:
@@ -126,6 +197,15 @@ class Linter:
         del cur_scope[name]
 
     def type_list_to_str(self, type_list: list[str]) -> str:
+        """
+        Convert a list of types to a C++ template string.
+        
+        Args:
+            type_list (list[str]): List of type names
+        
+        Returns:
+            str: C++ template string representation
+        """
         return_type = "list<"
         n = len(type_list)
         for i, type_ in enumerate(type_list):
@@ -136,6 +216,20 @@ class Linter:
         return return_type
 
     def get_var(self, name, scope=["global"], return_scope_found=False) -> Variable:
+        """
+        Retrieve a variable from the scope hierarchy.
+        
+        Args:
+            name (str): Variable name
+            scope (list[str]): Scope path to search
+            return_scope_found (bool): Whether to return the scope where variable was found
+        
+        Returns:
+            Variable | tuple[Variable, list[str]]: Variable object or tuple with scope
+        
+        Raises:
+            LinterError: If the variable is not found
+        """
         cur = self.typed_vars
         st = []
         debug_st = []
@@ -220,12 +314,40 @@ class Linter:
         raise LinterError(f"Variable/Function {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {st_str}, all vars:  \n\n{self.typed_vars}\n\n")
 
     def add_func(self, name, f_type):
+        """
+        Add a function with its type.
+        
+        Args:
+            name (str): Name of the function
+            f_type (str): Type information of the function
+        """
         self.typed_funcs[name] = f_type
 
     def get_func_type(self, name):
+        """
+        Retrieve the type of a function by name.
+        
+        Args:
+            name (str): Name of the function
+        
+        Returns:
+            str: The type information of the function
+        """
         return self.typed_funcs[name]
 
     def python_to_cpp_type(self, t_name: str | list[str]):
+        """
+        Map Python type names to equivalent C++ type names.
+        
+        Args:
+            t_name (str | list[str]): Python type name or nested list of type names
+        
+        Returns:
+            str: Equivalent C++ type name
+        
+        Raises:
+            NotImplementedError: If the Python type is not mapped to a C++ type
+        """
         if t_name is None:
             return "void"
         if isinstance(t_name, list):
@@ -238,6 +360,17 @@ class Linter:
         raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
 
     def get_subscript_type(self, base_name, size, scope=["global"]):
+        """
+        Determine the type of a subscript operation.
+        
+        Args:
+            base_name (str): Name of the base variable
+            size (int): Index size for the subscript
+            scope (list[str]): Current scope path
+        
+        Returns:
+            str: The inferred type of the subscript
+        """
         try:
             base_type = self.get_var_type(base_name, scope)
             if base_type == "Unknown":
@@ -252,6 +385,19 @@ class Linter:
             return "Unknown"
 
     def get_attr_type(self, pytype_from, attr: str):
+        """
+        Get the type of an attribute or method call.
+        
+        Args:
+            pytype_from (str): Type of the object the attribute belongs to
+            attr (str): Name of the attribute or method
+        
+        Returns:
+            str | list[str]: Type of the attribute or method return
+        
+        Raises:
+            NotImplementedError: If the attribute is not recognized
+        """
         if attr == "split":
             return ["list", "str"]
         if attr in ["strip", "lower", "upper", "replace"]:
@@ -266,6 +412,17 @@ class Linter:
         raise NotImplementedError(f"Attribute {attr} not implemented")
 
     def is_list_repeatition(self, pytype_left, pytype_right, op: str):
+        """
+        Check if an operation indicates list repetition.
+        
+        Args:
+            pytype_left (str | list): Left operand type
+            pytype_right (str | list): Right operand type
+            op (str): Operator string
+        
+        Returns:
+            bool: True if the operation is a list repetition, False otherwise
+        """
         if op != "*":
             return False
         return (isinstance(pytype_left, list) and pytype_left[0] == "list" and pytype_right=="int") or \
@@ -273,6 +430,17 @@ class Linter:
 
     
     def get_binop_type(self, pytype_left, pytype_right, op: str):
+        """
+        Determine the result type of a binary operation.
+        
+        Args:
+            pytype_left (str | list): Left operand type
+            pytype_right (str | list): Right operand type
+            op (str): Operator string
+        
+        Returns:
+            str: The inferred result type of the binary operation
+        """
         if not isinstance(pytype_left, list) and \
             pytype_left not in Linter.TYPES and \
             pytype_left != "Unknown":

@@ -1,3 +1,18 @@
+"""
+Scope Management for Python to C++ Conversion
+
+This module provides utilities for managing variable and function scopes
+during the AST traversal and conversion process. It handles scope resolution,
+nested scope creation, and scope-based lookups.
+
+The ScopeHandler class provides static methods for determining appropriate
+scopes for different AST nodes and managing scope hierarchies.
+
+Author: Thomas Tien
+Project: py2cpp - Python to C++ Converter
+License: MIT
+"""
+
 import sys
 import ast
 
@@ -6,11 +21,29 @@ from py2c.core.errors import LinterError
 
 
 class ScopeHandler:
+    """
+    Utility class for managing variable and function scopes during conversion.
+    
+    This class provides static methods to determine appropriate scopes for
+    different AST nodes and manage scope hierarchies during the conversion process.
+    """
+    
     @staticmethod
     def additional_scope(node: ast.AST, current_scope: list[str], linter: Linter) -> list[str]:
         """
-        Returns a list of additional scopes that the node might require.
-        This is used to determine if the node needs to be processed in a specific scope.
+        Determine the appropriate scope for an AST node.
+        
+        This method analyzes AST nodes and returns the scope that should be used
+        for processing the node, taking into account nested scopes like functions,
+        loops, and conditionals.
+        
+        Args:
+            node (ast.AST): The AST node to analyze
+            current_scope (list[str]): Current scope path
+            linter (Linter): The linter instance for scope lookups
+        
+        Returns:
+            list[str]: The appropriate scope path for the node
         """
         if isinstance(node, ast.For):
             return current_scope + [f"for_{id(node)}"]
@@ -47,7 +80,16 @@ class ScopeHandler:
     @staticmethod
     def is_in_function_scope(current_scope: list[str]) -> bool:
         """
-        Check if the current_scope is within a function scope.
+        Check if the current scope is within a function scope.
+        
+        This method examines the scope path to determine if the current
+        context is inside a function definition.
+        
+        Args:
+            current_scope (list[str]): Current scope path to check
+        
+        Returns:
+            bool: True if currently in a function scope, False otherwise
         """
         for i in range(len(current_scope) - 1, -1, -1):
             if current_scope[i] == "global":

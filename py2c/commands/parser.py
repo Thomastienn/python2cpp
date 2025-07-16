@@ -1,3 +1,27 @@
+"""
+Python to C++ Parser Module
+
+This module contains the main parsing logic that converts Python Abstract Syntax Trees (AST)
+into equivalent C++ code. It orchestrates the conversion process by:
+
+1. Extracting function definitions from the AST
+2. Processing global scope to determine variable types
+3. Generating C++ headers and templates
+4. Converting Python code to C++ equivalents
+5. Generating the main() function
+
+The parser handles:
+- Function definitions and calls
+- Variable type inference
+- Template generation for Python built-ins
+- Global variable declarations
+- Scope management
+
+Author: Thomas Tien
+Project: py2cpp - Python to C++ Converter
+License: MIT
+"""
+
 import sys
 import ast
 
@@ -10,7 +34,35 @@ from py2c.utils.scope_handler import ScopeHandler
 from py2c.utils.logger import setup_logger
 
 ReprVisitContext.model_rebuild()
+
+
 def parse(tree):
+    """
+    Parse a Python AST and convert it to C++ code.
+    
+    This is the main entry point for the Python to C++ conversion process.
+    It takes a Python AST and performs a multi-pass conversion:
+    
+    1. First pass: Extract function definitions and separate normal expressions
+    2. Second pass: Pre-process global scope to infer variable types
+    3. Third pass: Generate C++ output including headers, templates, and code
+    
+    Args:
+        tree (ast.AST): The Python Abstract Syntax Tree to convert
+    
+    Returns:
+        None: The function prints the converted C++ code to stdout
+    
+    Raises:
+        Exception: Various exceptions during AST processing, wrapped with context
+    
+    Output Structure:
+        1. C++ headers and includes
+        2. Global variable declarations
+        3. Template function definitions
+        4. User-defined function implementations
+        5. Main function with converted code
+    """
     logger = setup_logger("py2cpp.parser")
     funcs = {}
     normal_exps = []

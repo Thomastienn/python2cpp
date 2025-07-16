@@ -1,8 +1,34 @@
+"""
+Data structures for the Python to C++ converter API.
+
+This module defines the Pydantic models used for request validation
+and data handling in the API services. It ensures that inputs meet
+specific criteria before processing and conversion.
+
+Security features include input size restrictions and validation
+against dangerous code patterns such as the use of blacklisted imports.
+
+Author: Thomas Tien
+Project: py2cpp - Python to C++ Converter
+License: MIT
+"""
+
 from pydantic import BaseModel, Field, field_validator
 from py2c.utils.constants import SECURITY_CONFIG
 
 
 class CodeRequest(BaseModel):
+    """
+    Pydantic model representing a code conversion request.
+
+    Attributes:
+        pycode (str): The Python code to be converted to C++.
+
+    Validation:
+        - Ensures the code is within length constraints
+        - Performs basic validation against dangerous import usage
+    """
+
     pycode: str = Field(
         ..., 
         min_length=1,
@@ -13,7 +39,18 @@ class CodeRequest(BaseModel):
     @field_validator('pycode')
     @classmethod
     def validate_pycode(cls, v: str) -> str:
-        """Validate Python code input"""
+        """
+        Validate Python code input for size and unauthorized imports.
+
+        Args:
+            v (str): The input Python code to be validated.
+
+        Returns:
+            str: The validated Python code, unchanged if valid.
+
+        Raises:
+            ValueError: If the code is empty or contains dangerous imports.
+        """
         # Basic validation
         if not v.strip():
             raise ValueError("Python code cannot be empty")
