@@ -8,6 +8,8 @@ venv/
 out/
 debug*
 *.egg-info
+.env
+*.debug
 
 # Security logs (keep these for monitoring but exclude from git)
 security.log

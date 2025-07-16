@@ -156,7 +156,7 @@ class ExprParser:
             None: Always returns None after logging the error
         """
         self.logger.error("NOT IMPLEMENTED: %s", node)
-        return
+        raise ParserError(f"Node type {type(node).__name__} is not implemented")
 
     def set_type(self, name, scope):
         """

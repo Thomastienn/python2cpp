@@ -32,10 +32,12 @@ from py2c.utils.template import CPPTemplate, CPPTemplateReturnType
 from py2c.utils.utils import Utils
 from py2c.utils.scope_handler import ScopeHandler
 from py2c.utils.logger import setup_logger
+from py2c.commands.llm_parser import LLMParser
 
 ReprVisitContext.model_rebuild()
 
 
+@LLMParser
 def parse(tree):
     """
     Parse a Python AST and convert it to C++ code.
