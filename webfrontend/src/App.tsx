@@ -81,6 +81,111 @@ export function App() {
     const [pyCode, setPyCode] = useState<string>(defaultPyCode);
     const [cppCode, setCppCode] = useState<string>(defaultCppCode);
     const [pending, setPending] = useState<boolean>(false);
+    const [isOpenNoti, setIsOpenNoti] = useState<boolean>(true);
+    const [currentNotiMess, setCurrentNotiMess] = useState<string>(
+        `If you wait for more half a minute, it could be my backend
+        is cold starting. Please be patient, check console to make
+        sure there is no error.`,
+    );
+
+    const fixCppCode = async () => {
+        console.log('Fixing C++ code...');
+
+        // Client-side security validations
+        if (!cppCode.trim()) {
+            setCppCode('// ERROR: C++ code cannot be empty');
+            return;
+        }
+
+        if (!validateInputSize(cppCode)) {
+            setIsOpenNoti(true);
+            setCurrentNotiMess(
+                `// ERROR: Code size exceeds maximum limit of ${SECURITY_CONFIG.MAX_INPUT_SIZE / 1024}KB`,
+            );
+            return;
+        }
+
+        const codeValidationError = validatePythonCode(pyCode);
+        if (codeValidationError) {
+            setIsOpenNoti(true);
+            setCurrentNotiMess(`// ERROR: ${codeValidationError}`);
+            return;
+        }
+
+        setPending(true);
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+
+            const response = await fetch(
+                'https://python2cpp.onrender.com/fix',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        cppcode: cppCode,
+                    }),
+                    signal: controller.signal,
+                },
+            );
+
+            clearTimeout(timeoutId);
+            const data: ConvertCodeResponse = await response.json();
+
+            if (response.status !== 200) {
+                let errorMessage = 'ERROR: Fix failed\n';
+
+                if (response.status === 429) {
+                    errorMessage +=
+                        'Rate limit exceeded. Please wait before trying again.\n';
+                } else if (response.status === 400) {
+                    errorMessage += `Input validation error: ${data.detail || 'Invalid input'}\n`;
+                } else if (response.status === 408) {
+                    errorMessage +=
+                        'Request timeout: Code processing took too long\n';
+                } else {
+                    errorMessage += `Server error (${response.status})\n`;
+                }
+
+                if (data.detail) {
+                    // Sanitize error message before displaying
+                    const sanitizedDetail = sanitizeErrorMessage(data.detail);
+                    errorMessage += `Details: ${sanitizedDetail}`;
+                }
+
+                setIsOpenNoti(true);
+                setCurrentNotiMess('//' + errorMessage.replace('\n', '\n// '));
+            } else {
+                setCppCode(data.code || cppCode);
+                console.log('Fix complete!');
+            }
+        } catch (error) {
+            console.error('Error during fixing:', error);
+
+            let errorMessage = '// ERROR: Failed to fix C++ code\n';
+            if (error instanceof Error) {
+                if (error.name === 'AbortError') {
+                    errorMessage += '// Request timed out after 2 minutes\n';
+                } else if (error.message.includes('fetch')) {
+                    errorMessage +=
+                        '// Network error - please check your connection\n';
+                } else {
+                    errorMessage += '// Unexpected error occurred\n';
+                }
+            } else {
+                errorMessage += '// Unknown error occurred\n';
+            }
+            errorMessage += '// Check console for more details';
+
+            setIsOpenNoti(true);
+            setCurrentNotiMess(errorMessage);
+        } finally {
+            setPending(false);
+        }
+    };
 
     const convertPythonToCpp = async () => {
         console.log('Converting Python to C++...');
@@ -184,18 +289,13 @@ export function App() {
         setCppCode(defaultCppCode);
     };
 
-    const [isOpenNoti, setIsOpenNoti] = useState<boolean>(true);
-
     return (
         <div className="main-content">
             <SpeedInsights />
             <Analytics />
             {isOpenNoti && (
                 <div className="noti-bar">
-                    {' '}
-                    If you wait for more half a minute, it could be my backend
-                    is cold starting. Please be patient, check console to make
-                    sure there is no error.
+                    {currentNotiMess}
                     <span
                         className="close-noti"
                         onClick={() => {
@@ -207,7 +307,7 @@ export function App() {
                 </div>
             )}
             <h1 className="main-header">Py2Cpp</h1>
-            <FuncTab funcConvert={convertPythonToCpp} />
+            <FuncTab funcConvert={convertPythonToCpp} funcFix={fixCppCode} />
             <PresetSelector onSelectPreset={setPyCode} />
             <div className="editor">
                 <MyEditor

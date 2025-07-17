@@ -61,7 +61,7 @@ def LLMFix(cpp_output: str):
         ],
         config=types.GenerateContentConfig(
             temperature=0.0,
-            system_instruction="You are a C++ expert. You will be given a C++ code and compilation errors and you need to fix all compile error, syntax error, any errors except logic errors in the code. Make sure the code is valid C++ code and can be compiled without any errors.",
+            system_instruction="You are a C++ expert. You will be given a C++ code and compilation errors and you need to fix all compile error, syntax error, any errors except logic errors in the code. Make sure the code is valid C++ code and can be compiled without any errors. Do not add extra comments or explanations, just return the fixed C++ code.",
             response_mime_type="application/json",
             response_schema=LLMFixResponse,
         )
