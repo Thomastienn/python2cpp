@@ -72,5 +72,6 @@ def LLMFix(cpp_output: str):
         raise Exception("LLM failed to fix the code")
 
     logger.info("LLM fixed the code successfully")
+    logger.info("Fixed C++ code:\n" + llm_response.code)
     return llm_response.code
 
