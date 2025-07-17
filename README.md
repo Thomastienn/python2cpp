@@ -71,10 +71,24 @@ using namespace std;
 int mod;
 
 // Just my templates to replace python functions
-int cmod(int a, int b) {
-    return (a % b + b) % b;
+vector<string> csplit(const string& s, const string& delim = " ") {
+    vector<string> result;
+    size_t start = 0, end;
+
+    while ((end = s.find(delim, start)) != string::npos) {
+        result.push_back(s.substr(start, end - start));
+        start = end + delim.length();
+    }
+    result.push_back(s.substr(start));
+    return result;
 }
 
+string cinput(string prompt = "") {
+    cout << prompt;
+    string s;
+    getline(cin, s);
+    return s;
+}
 
 template <typename T>
 long long fastpow(T a, T b) {
@@ -89,24 +103,10 @@ long long fastpow(T a, T b) {
     return res;
 }
 
-string cinput(string prompt = "") {
-    cout << prompt;
-    string s;
-    getline(cin, s);
-    return s;
+int cmod(int a, int b) {
+    return (a % b + b) % b;
 }
 
-vector<string> csplit(const string& s, const string& delim = " ") {
-    vector<string> result;
-    size_t start = 0, end;
-
-    while ((end = s.find(delim, start)) != string::npos) {
-        result.push_back(s.substr(start, end - start));
-        start = end + delim.length();
-    }
-    result.push_back(s.substr(start));
-    return result;
-}
 
 // Your functions are here
 vector<vector<int>> multiply(vector<vector<int>> a, vector<vector<int>> b) {
