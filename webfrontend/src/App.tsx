@@ -12,6 +12,11 @@ export interface ConvertCodeResponse {
     detail?: string;
     status?: string;
 }
+export interface FixCodeResponse {
+    fix_code?: string;
+    detail?: string;
+    status?: string;
+}
 
 // Security configuration
 const SECURITY_CONFIG = {
@@ -133,7 +138,7 @@ export function App() {
             );
 
             clearTimeout(timeoutId);
-            const data: ConvertCodeResponse = await response.json();
+            const data: FixCodeResponse = await response.json();
 
             if (response.status !== 200) {
                 let errorMessage = 'ERROR: Fix failed\n';
