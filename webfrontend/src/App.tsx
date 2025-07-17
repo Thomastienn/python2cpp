@@ -108,7 +108,7 @@ export function App() {
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
 
             const response = await fetch(
                 'https://python2cpp.onrender.com/convert',
@@ -161,7 +161,7 @@ export function App() {
             let errorMessage = '// ERROR: Failed to convert Python to C++\n';
             if (error instanceof Error) {
                 if (error.name === 'AbortError') {
-                    errorMessage += '// Request timed out after 30 seconds\n';
+                    errorMessage += '// Request timed out after 2 minutes\n';
                 } else if (error.message.includes('fetch')) {
                     errorMessage +=
                         '// Network error - please check your connection\n';
