@@ -136,3 +136,4 @@ def parse(tree):
     # print(printer.linter.funcs, file=sys.stderr)
 
     printer.visit_Str("DEBUG", VisitContext(allow_print=False))
+    Utils.template_uses.clear()
