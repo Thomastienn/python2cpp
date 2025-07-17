@@ -18,7 +18,7 @@ SECURITY_CONFIG = {
     'RATE_LIMIT_BAN_DURATION': 300,   # 5 minutes ban for abuse
     
     # Timeouts
-    'CONVERSION_TIMEOUT': 30,     # 30 seconds max for conversion
+    'CONVERSION_TIMEOUT': 120,     # 2 minutes max for conversion
     'FILE_READ_TIMEOUT': 10,      # 10 seconds max for file reading
     
     # CORS configuration
