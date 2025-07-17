@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim-bullseye
 
 WORKDIR /app
 
@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y \
     g++ \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+RUN g++ --version
 
 # Install Core Dependencies
 COPY requirements.txt core_requirements.txt

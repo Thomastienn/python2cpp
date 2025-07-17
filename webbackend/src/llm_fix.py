@@ -32,7 +32,7 @@ def LLMFix(cpp_output: str):
         logger.info(f"Temporary C++ file created at {cpp_file_path}")
         logger.info("Compiling C++ code...")
         compile_command = [
-            "g++", "-std=c++21", "-o", out_file_path, cpp_file_path
+            "g++", "-std=c++20", "-o", out_file_path, cpp_file_path
         ]
         result = subprocess.run(compile_command, capture_output=True, text=True)
 
@@ -46,10 +46,9 @@ def LLMFix(cpp_output: str):
         if result.returncode == 0:
             logger.info("Compilation successful. No errors found.")
             return cpp_output
-
-        if result.returncode != 0:
+        else:
             errors = result.stderr.strip()
-            logger.error("Compilation failed with errors: \n" + errors)
+            logger.info("Compilation failed with errors: \n" + errors)
             
 
     client = genai.Client()
