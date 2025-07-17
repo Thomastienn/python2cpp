@@ -164,7 +164,7 @@ export function App() {
                 setIsOpenNoti(true);
                 setCurrentNotiMess('//' + errorMessage.replace('\n', '\n// '));
             } else {
-                console.log('Fix response:', data, data.fix_code);
+                // console.log('Fix response:', data, data.fix_code);
                 setCppCode(data.fix_code || cppCode);
                 console.log('Fix complete!');
             }

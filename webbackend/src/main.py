@@ -221,7 +221,9 @@ async def convert(request: Request, req: PyCodeRequest):
         security_logger.info(f"Conversion request from {client_ip}, code size: {len(req.pycode)} bytes")
         
         # Process with timeout
+        security_logger.info(f"Received: {req.pycode}")
         result = Utils.capture_output(parse, tree, timeout=SECURITY_CONFIG['CONVERSION_TIMEOUT'])
+        security_logger.info(f"Converted to: {result}")
         
         return {
             "code": result,
