@@ -159,7 +159,7 @@ export function App() {
                 setIsOpenNoti(true);
                 setCurrentNotiMess('//' + errorMessage.replace('\n', '\n// '));
             } else {
-                setCppCode(data.code || cppCode);
+                setCppCode(data.fix_code || cppCode);
                 console.log('Fix complete!');
             }
         } catch (error) {
