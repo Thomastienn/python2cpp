@@ -1,4 +1,2 @@
 pydantic
 typing
-google-genai
-python-dotenv

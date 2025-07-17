@@ -281,6 +281,24 @@ class Utils:
     
     # List of names of template used. Must be the name of the enum
     template_uses: set[str] = set()
+
+    def generate_unique_filename(base: str) -> str:
+        """
+        Generate a unique filename by appending a counter to the base name.
+        
+        Args:
+            base (str): The base filename to use.
+        
+        Returns:
+            str: A unique filename with a counter appended.
+        """
+        timed_base = f"{base}_{int(time.time())}"
+        if os.path.exists(timed_base):
+            counter = 1
+            while os.path.exists(f"{timed_base}_{counter}"):
+                counter += 1
+            return f"{timed_base}_{counter}"
+        return timed_base
     
     @staticmethod
     def get_file_no_ext(filename):

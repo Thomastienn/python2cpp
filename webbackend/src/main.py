@@ -40,7 +40,8 @@ from slowapi.errors import RateLimitExceeded
 from py2c.commands.parser import parse
 from py2c.utils.utils import Utils, SecurityUtils, SecurityError
 from py2c.utils.constants import SECURITY_CONFIG
-from structures import CodeRequest
+from structures import PyCodeRequest, CppCodeRequest
+from llm_fix import LLMFix
 
 app = FastAPI()
 
@@ -177,7 +178,7 @@ async def root(request: Request):
 
 @app.post("/convert")
 @limiter.limit(SECURITY_CONFIG['API_RATE_LIMIT'])
-async def convert(request: Request, req: CodeRequest):
+async def convert(request: Request, req: PyCodeRequest):
     """
     Convert Python code to C++ with comprehensive security validation.
     
@@ -186,7 +187,7 @@ async def convert(request: Request, req: CodeRequest):
     
     Args:
         request (Request): The incoming HTTP request (used for rate limiting and IP tracking)
-        req (CodeRequest): Pydantic model containing the Python code to convert
+        req (PyCodeRequest): Pydantic model containing the Python code to convert
     
     Returns:
         dict: JSON response containing the converted C++ code
@@ -245,3 +246,63 @@ async def convert(request: Request, req: CodeRequest):
         raise HTTPException(status_code=500, detail=full_error)
 
 
+@app.post("/fix")
+@limiter.limit(SECURITY_CONFIG['API_RATE_LIMIT'])
+async def fix(request: Request, req: CppCodeRequest):
+    """
+    Args:
+        request (Request): The incoming HTTP request (used for rate limiting and IP tracking)
+        req (CppCodeRequest): Pydantic model containing the cpp code to validate and fix
+    
+    Returns:
+        dict: JSON response containing the final C++ code
+            {
+                "fix_code": "Fixed C++ code",
+                "status": "success"
+            }
+    
+    Raises:
+        HTTPException: 
+            - 400: Invalid input or security validation failure
+            - 408: Request timeout (processing took too long)
+            - 500: Internal server error during conversion
+    
+    Security Features:
+        - Input size validation (prevents resource exhaustion)
+        - Processing timeout protection
+        - Error message sanitization
+        - Security event logging
+        - Rate limiting per IP address
+    """
+    client_ip = get_remote_address(request)
+    
+    try:
+        # Security validations
+        SecurityUtils.validate_input_size(req.cppcode)
+        
+        # Log conversion attempt
+        security_logger.info(f"Conversion request from {client_ip}, code size: {len(req.cppcode)} bytes")
+        
+        cpp_final = LLMFix(req.cppcode)
+        
+        return {
+            "fix_code": cpp_final,
+            "status": "success"
+        }
+        
+    except SecurityError as e:
+        security_logger.warning(f"Security violation from {client_ip}: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except TimeoutError as e:
+        security_logger.warning(f"Conversion timeout from {client_ip}")
+        raise HTTPException(status_code=408, detail="Request timeout: Code processing took too long")
+    
+    except Exception as e:
+        # Log the actual error for debugging but don't expose it
+        security_logger.error(f"Conversion error from {client_ip}: {type(e).__name__}: {str(e)}")
+        
+        # Return sanitized error message
+        sanitized_error = SecurityUtils.sanitize_error_message(e, debug_mode=False)
+        full_error = sanitized_error + "\n\nTraceback for devs: " + traceback.format_exc()
+        raise HTTPException(status_code=500, detail=full_error)

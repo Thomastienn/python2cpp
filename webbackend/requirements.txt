@@ -2,3 +2,5 @@ pydantic
 fastapi[all]
 uvicorn
 slowapi
+google-genai
+python-dotenv

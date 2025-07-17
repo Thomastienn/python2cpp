@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from py2c.utils.constants import SECURITY_CONFIG
 
 
-class CodeRequest(BaseModel):
+class PyCodeRequest(BaseModel):
     """
     Pydantic model representing a code conversion request.
 
@@ -66,3 +66,20 @@ class CodeRequest(BaseModel):
                         raise ValueError(f"Potentially unsafe import detected: {dangerous}")
         
         return v
+
+class CppCodeRequest(BaseModel):
+    """
+    Pydantic model representing a code fix request.
+
+    Attributes:
+        cppcode (str): The C++ code to be validated and fixed.
+    Validation:
+        - Ensures the code is not exceed length constraints
+    """
+
+    cppcode: str = Field(
+        ..., 
+        min_length=1,
+        max_length=SECURITY_CONFIG['MAX_INPUT_SIZE'],
+        description="C++ code to validate and fix"
+    )
