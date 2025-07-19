@@ -2,15 +2,7 @@
 
 - A simple python to C++ converter
 - CLI, API, Web supported
-- In development (expect LOTS OF bugs)
-
-### Note
-
-- I assume the python code was runnable without runtime or syntax error
-- It has not yet support for libraries (only vanilla python)
-- It cannot copy comments to cpp yet (low priority)
-- It can still produce syntax error (use with caution)
-- It will not produce unused functions ()
+- LLM as a fallback
 
 ### DEMO
 
