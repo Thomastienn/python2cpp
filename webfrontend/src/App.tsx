@@ -5,7 +5,7 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import { PresetSelector } from './components/presetselector/presetselector';
 import { Analytics } from '@vercel/analytics/react';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export interface ConvertCodeResponse {
     code?: string;
@@ -294,6 +294,13 @@ export function App() {
         setPyCode(defaultPyCode);
         setCppCode(defaultCppCode);
     };
+
+    useEffect(() => {
+        // Warm up the backend on initial load
+        fetch('https://python2cpp.onrender.com/', {
+            method: 'GET',
+        });
+    }, []);
 
     return (
         <div className="main-content">
