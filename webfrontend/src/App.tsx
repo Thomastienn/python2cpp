@@ -86,11 +86,10 @@ export function App() {
     const [pyCode, setPyCode] = useState<string>(defaultPyCode);
     const [cppCode, setCppCode] = useState<string>(defaultCppCode);
     const [pending, setPending] = useState<boolean>(false);
+    const [backendReady, setBackendReady] = useState<boolean>(false);
     const [isOpenNoti, setIsOpenNoti] = useState<boolean>(true);
     const [currentNotiMess, setCurrentNotiMess] = useState<string>(
-        `If you wait for more half a minute, it could be my backend
-        is cold starting. Please be patient, check console to make
-        sure there is no error.`,
+        'Waking up backend server... This may take up to 60 seconds on first visit.',
     );
 
     const fixCppCode = async () => {
@@ -297,9 +296,25 @@ export function App() {
 
     useEffect(() => {
         // Warm up the backend on initial load
-        fetch('https://python2cpp.onrender.com/', {
-            method: 'GET',
-        });
+        const warmupBackend = async () => {
+            const startTime = Date.now();
+            try {
+                const response = await fetch('https://python2cpp.onrender.com/', {
+                    method: 'GET',
+                });
+                if (response.ok) {
+                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                    setBackendReady(true);
+                    setCurrentNotiMess(`Backend ready! (took ${elapsed}s)`);
+                    // Auto-hide notification after 3 seconds
+                    setTimeout(() => setIsOpenNoti(false), 3000);
+                }
+            } catch (error) {
+                console.error('Backend warmup failed:', error);
+                setCurrentNotiMess('Backend warmup failed. Conversion may be slow on first try.');
+            }
+        };
+        warmupBackend();
     }, []);
 
     return (
@@ -307,7 +322,8 @@ export function App() {
             <SpeedInsights />
             <Analytics />
             {isOpenNoti && (
-                <div className="noti-bar">
+                <div className={`noti-bar ${backendReady ? 'ready' : 'loading'}`}>
+                    {!backendReady && <span className="loading-spinner"></span>}
                     {currentNotiMess}
                     <span
                         className="close-noti"

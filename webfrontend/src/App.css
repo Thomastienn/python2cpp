@@ -44,7 +44,17 @@
     display: flex;
     align-items: center;
     gap: 1rem;
+    padding: 0.5rem 1rem;
     background-color: rgba(255, 255, 255, 0.05);
+    transition: background-color 0.3s ease;
+}
+
+.noti-bar.loading {
+    background-color: rgba(255, 193, 7, 0.15);
+}
+
+.noti-bar.ready {
+    background-color: rgba(76, 175, 80, 0.15);
 }
 
 .close-noti {
@@ -57,4 +67,19 @@
     justify-content: center;
     cursor: pointer;
     font-weight: 600;
+}
+
+.loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
