@@ -1,18 +1,25 @@
 import os
-import ast
-import time
 import tempfile
 import subprocess
 
-from google import genai
-from google.genai import types
-from dotenv import load_dotenv
-
-from py2c.core.structure import LLMFixResponse
 from py2c.utils.utils import Utils
 from py2c.utils.logger import setup_logger
 
-load_dotenv()
+# Lazy-loaded modules (heavy imports deferred until needed)
+_genai_client = None
+
+
+def _get_genai_client():
+    """Lazy load the Google GenAI client only when needed."""
+    global _genai_client
+    if _genai_client is None:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+        from google import genai
+
+        _genai_client = genai.Client()
+    return _genai_client
 
 
 def LLMFix(cpp_output: str):
@@ -20,8 +27,8 @@ def LLMFix(cpp_output: str):
 
     # Compile and check the C++ errors and warnings
     with tempfile.TemporaryDirectory() as tempdir:
-        cpp_filename = f"{Utils.generate_unique_filename("temp")}.cpp"
-        out_filename = f"{Utils.generate_unique_filename("temp")}.out"
+        cpp_filename = f"{Utils.generate_unique_filename('temp')}.cpp"
+        out_filename = f"{Utils.generate_unique_filename('temp')}.out"
 
         cpp_file_path = os.path.join(tempdir, cpp_filename)
         out_file_path = os.path.join(tempdir, out_filename)
@@ -31,9 +38,7 @@ def LLMFix(cpp_output: str):
 
         logger.info(f"Temporary C++ file created at {cpp_file_path}")
         logger.info("Compiling C++ code...")
-        compile_command = [
-            "g++", "-std=c++20", "-o", out_file_path, cpp_file_path
-        ]
+        compile_command = ["g++", "-std=c++20", "-o", out_file_path, cpp_file_path]
         result = subprocess.run(compile_command, capture_output=True, text=True)
 
         # Remove temporary files if they exist
@@ -41,7 +46,7 @@ def LLMFix(cpp_output: str):
             os.remove(cpp_file_path)
         if os.path.exists(out_file_path):
             os.remove(out_file_path)
-        
+
         # No need to fix
         if result.returncode == 0:
             logger.info("Compilation successful. No errors found.")
@@ -49,21 +54,24 @@ def LLMFix(cpp_output: str):
         else:
             errors = result.stderr.strip()
             logger.info("Compilation failed with errors: \n" + errors)
-            
 
-    client = genai.Client()
+    # Lazy import heavy dependencies only when LLM fix is actually needed
+    from google.genai import types
+    from py2c.core.structure import LLMFixResponse
+
+    client = _get_genai_client()
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=[
             "Here is your c++ code:\n\n" + cpp_output,
-            "Here are the compilation errors:\n\n" + errors
+            "Here are the compilation errors:\n\n" + errors,
         ],
         config=types.GenerateContentConfig(
             temperature=0.0,
             system_instruction="You are a C++ expert. You will be given a C++ code and compilation errors and you need to fix all compile error, syntax error, any errors except logic errors in the code. Make sure the code is valid C++ code and can be compiled without any errors. Do not add extra comments or explanations, just return the fixed C++ code.",
             response_mime_type="application/json",
             response_schema=LLMFixResponse,
-        )
+        ),
     )
     logger.info("LLM fixed finished")
     llm_response: LLMFixResponse = response.parsed
@@ -74,4 +82,3 @@ def LLMFix(cpp_output: str):
     logger.info("LLM fixed the code successfully")
     logger.info("Fixed C++ code:\n" + llm_response.code)
     return llm_response.code
-
