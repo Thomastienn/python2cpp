@@ -1,5 +1,9 @@
 {
+  "buildCommand": "cd webfrontend && npm install && npm run build",
+  "outputDirectory": "webfrontend/dist",
+  "framework": null,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" }
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
