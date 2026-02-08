@@ -83,13 +83,18 @@ export function App() {
         '# Python code goes here. Drag and drop if you need to';
     const defaultCppCode = '// C++ code will be generated here';
 
+    // Backend URL: use env var if set, otherwise default to Vercel deployment
+    // For local dev, create .env with VITE_BACKEND_URL=http://localhost:8000
+    // For Vercel, the API lives at the same domain under /api
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+
     const [pyCode, setPyCode] = useState<string>(defaultPyCode);
     const [cppCode, setCppCode] = useState<string>(defaultCppCode);
     const [pending, setPending] = useState<boolean>(false);
     const [backendReady, setBackendReady] = useState<boolean>(false);
     const [isOpenNoti, setIsOpenNoti] = useState<boolean>(true);
     const [currentNotiMess, setCurrentNotiMess] = useState<string>(
-        'Waking up backend server... This may take up to 60 seconds on first visit.',
+        'Waking up backend server...',
     );
 
     const fixCppCode = async () => {
@@ -123,7 +128,7 @@ export function App() {
             const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
 
             const response = await fetch(
-                'https://python2cpp.onrender.com/fix',
+                `${backendUrl}/api/fix`,
                 {
                     method: 'POST',
                     headers: {
@@ -221,7 +226,7 @@ export function App() {
             const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
 
             const response = await fetch(
-                'https://python2cpp.onrender.com/convert',
+                `${backendUrl}/api/convert`,
                 {
                     method: 'POST',
                     headers: {
@@ -299,7 +304,7 @@ export function App() {
         const warmupBackend = async () => {
             const startTime = Date.now();
             try {
-                const response = await fetch('https://python2cpp.onrender.com/', {
+                const response = await fetch(`${backendUrl}/api/`, {
                     method: 'GET',
                 });
                 if (response.ok) {

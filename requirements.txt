@@ -1,2 +1,6 @@
 pydantic
 typing
+fastapi[all]
+mangum
+google-genai
+python-dotenv
