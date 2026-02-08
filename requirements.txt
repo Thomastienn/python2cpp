@@ -1,5 +1,4 @@
 pydantic
-typing
 fastapi[all]
 google-genai
 python-dotenv
