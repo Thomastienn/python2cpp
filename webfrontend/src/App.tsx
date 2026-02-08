@@ -5,7 +5,7 @@ import { SpeedInsights } from '@vercel/speed-insights/react';
 import { PresetSelector } from './components/presetselector/presetselector';
 import { Analytics } from '@vercel/analytics/react';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export interface ConvertCodeResponse {
     code?: string;
@@ -91,11 +91,8 @@ export function App() {
     const [pyCode, setPyCode] = useState<string>(defaultPyCode);
     const [cppCode, setCppCode] = useState<string>(defaultCppCode);
     const [pending, setPending] = useState<boolean>(false);
-    const [backendReady, setBackendReady] = useState<boolean>(false);
-    const [isOpenNoti, setIsOpenNoti] = useState<boolean>(true);
-    const [currentNotiMess, setCurrentNotiMess] = useState<string>(
-        'Waking up backend server...',
-    );
+    const [isOpenNoti, setIsOpenNoti] = useState<boolean>(false);
+    const [currentNotiMess, setCurrentNotiMess] = useState<string>('');
 
     const fixCppCode = async () => {
         console.log('Fixing C++ code...');
@@ -299,36 +296,12 @@ export function App() {
         setCppCode(defaultCppCode);
     };
 
-    useEffect(() => {
-        // Warm up the backend on initial load
-        const warmupBackend = async () => {
-            const startTime = Date.now();
-            try {
-                const response = await fetch(`${backendUrl}/api/`, {
-                    method: 'GET',
-                });
-                if (response.ok) {
-                    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                    setBackendReady(true);
-                    setCurrentNotiMess(`Backend ready! (took ${elapsed}s)`);
-                    // Auto-hide notification after 3 seconds
-                    setTimeout(() => setIsOpenNoti(false), 3000);
-                }
-            } catch (error) {
-                console.error('Backend warmup failed:', error);
-                setCurrentNotiMess('Backend warmup failed. Conversion may be slow on first try.');
-            }
-        };
-        warmupBackend();
-    }, []);
-
     return (
         <div className="main-content">
             <SpeedInsights />
             <Analytics />
             {isOpenNoti && (
-                <div className={`noti-bar ${backendReady ? 'ready' : 'loading'}`}>
-                    {!backendReady && <span className="loading-spinner"></span>}
+                <div className="noti-bar">
                     {currentNotiMess}
                     <span
                         className="close-noti"
