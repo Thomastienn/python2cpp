@@ -16,7 +16,7 @@ Key differences from the Render (Docker/Uvicorn) deployment:
   instead of security.log file
 - No persistent state: rate limiting and IP abuse tracking are removed
   (each invocation is independent). Vercel has its own DDoS protection.
-- Uses Mangum adapter to bridge FastAPI (ASGI) to AWS Lambda handler format
+- Vercel natively detects the FastAPI `app` variable -- no adapter needed
 
 Author: Thomas Tien
 Project: py2cpp - Python to C++ Converter
@@ -30,7 +30,6 @@ import traceback
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from mangum import Mangum
 
 # Add the project root to sys.path so py2c can be imported
 # On Vercel, the project root is one level up from api/
@@ -240,5 +239,5 @@ async def fix(request: Request, req: CppCodeRequest):
         raise HTTPException(status_code=500, detail=full_error)
 
 
-# Vercel uses this handler
-handler = Mangum(app)
+# Vercel automatically detects this `app` variable and serves it as ASGI.
+# No additional handler/adapter needed.
