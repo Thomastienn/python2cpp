@@ -1,6 +1,8 @@
 # Py2Cpp
 
-A Python to C++ source code converter designed for competitive programming.
+A Python to C++ source code converter designed for competitive programming. \
+\
+**I built the core features myself, claude helped with comments, readme, and security fixes.**
 
 <!-- Add your demo video here -->
 https://github.com/user-attachments/assets/0c1d12af-e77f-4e1a-98db-8505fd204095

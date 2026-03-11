@@ -296,6 +296,11 @@ export function App() {
         setCppCode(defaultCppCode);
     };
 
+    useEffect(() => {
+        // Warm up serverless function
+        fetch(`${backendUrl}/api/`)
+    }, []);
+
     return (
         <div className="main-content">
             <SpeedInsights />
