@@ -12,7 +12,7 @@ various Python constructs including:
 - Expressions and operators
 - Type inference and management
 
-The ExprParser works in conjunction with the Linter and ReprVisitor classes to
+The ExprParser works in conjunction with the typeinferencer and ReprVisitor classes to
 perform semantic analysis and code generation.
 
 Author: Thomas Tien
@@ -27,13 +27,13 @@ import pprint
 import builtins
 from copy import deepcopy
 
-from py2c.utils.linter import Linter
+from py2c.utils.typeinferencer import TypeInferencer
 from py2c.utils import constants
 from py2c.utils.scope_handler import ScopeHandler
 from py2c.core.visitor import ReprVisitor
 from py2c.core.structure import VisitContext, ReprVisitContext, Function
 from py2c.utils.logger import setup_logger
-from py2c.core.errors import ErrorUsage, UserError, ParserError, LinterError, VisitorError
+from py2c.core.errors import ErrorUsage, UserError, ParserError, typeinferencerError, VisitorError
 
 
 class ExprParser:
@@ -45,7 +45,7 @@ class ExprParser:
     code generation for various Python constructs.
     
     Attributes:
-        linter (Linter): Type checking and variable management system
+        typeinferencer (typeinferencer): Type checking and variable management system
         repr (ReprVisitor): Expression representation visitor
         allow_print (bool): Whether to output generated code
         num_for (int): Counter for for loop nesting levels
@@ -59,8 +59,8 @@ class ExprParser:
         Args:
             funcs (dict[str, Function]): Dictionary mapping function names to Function objects
         """
-        self.linter = Linter(funcs)
-        self.repr = ReprVisitor(self.linter)
+        self.typeinferencer = TypeInferencer(funcs)
+        self.repr = ReprVisitor(self.typeinferencer)
         self.allow_print = True
         # Debug output now handled by logging
         self.num_for = 0
@@ -78,8 +78,8 @@ class ExprParser:
             bool: True if the function should be scanned, False otherwise
         """
         return isinstance(node, ast.Call) and \
-            isinstance(node.func, ast.Name) and node.func.id in self.linter.funcs and \
-            (self.linter.funcs[node.func.id].return_pytype is None) and \
+            isinstance(node.func, ast.Name) and node.func.id in self.typeinferencer.funcs and \
+            (self.typeinferencer.funcs[node.func.id].return_pytype is None) and \
             node.func.id not in visit_ctx.scope
 
     def print_line(self, line: str, current_indent: int, end="\n"):
@@ -98,9 +98,9 @@ class ExprParser:
 
     def visit_Str(self, string: str, visit_ctx: VisitContext):
         if string == "DEBUG":
-            self.logger.debug("Debug info - has_typed: %s", self.linter.has_typed)
-            self.logger.debug("Debug info - typed_vars: %s", self.linter.typed_vars)
-            self.logger.debug("Debug info - funcs: %s", self.linter.funcs)
+            self.logger.debug("Debug info - has_typed: %s", self.typeinferencer.has_typed)
+            self.logger.debug("Debug info - typed_vars: %s", self.typeinferencer.typed_vars)
+            self.logger.debug("Debug info - funcs: %s", self.typeinferencer.funcs)
             return
         raise ErrorUsage("You are not supposed to end up here")
         
@@ -129,16 +129,16 @@ class ExprParser:
         self.allow_print = allow_print
         
         # Debug logging
-        self.logger.debug("has_typed: %s", str(self.linter.has_typed).replace('\'', '\"'))
-        self.logger.debug("typed_vars: %s", str(self.linter.typed_vars).replace('\'', '\"'))
+        self.logger.debug("has_typed: %s", str(self.typeinferencer.has_typed).replace('\'', '\"'))
+        self.logger.debug("typed_vars: %s", str(self.typeinferencer.typed_vars).replace('\'', '\"'))
         self.logger.debug("visit_ctx: %s", visit_ctx)
         self.logger.debug("visiting: %s", node)
-        self.logger.debug("funcs: %s", self.linter.funcs)
+        self.logger.debug("funcs: %s", self.typeinferencer.funcs)
         
         result = visitor(node, VisitContext(
             current_indent=visit_ctx.current_indent,
             allow_print=allow_print,
-            scope=ScopeHandler.additional_scope(node=node, current_scope=visit_ctx.scope, linter=self.linter),
+            scope=ScopeHandler.additional_scope(node=node, current_scope=visit_ctx.scope, typeinferencer=self.typeinferencer),
             is_scanning=visit_ctx.is_scanning,
         ))
         self.allow_print = original
@@ -167,7 +167,7 @@ class ExprParser:
             scope (list[str]): Scope path where the variable is located
         """
         if self.allow_print:
-            self.linter.set_has_type(name, scope)
+            self.typeinferencer.set_has_type(name, scope)
 
     def unset_type(self, name, scope):
         """
@@ -178,7 +178,7 @@ class ExprParser:
             scope (list[str]): Scope path where the variable is located
         """
         if self.allow_print:
-            self.linter.unset_has_type(name, scope)
+            self.typeinferencer.unset_has_type(name, scope)
 
     def already_declared(self, name, visit_ctx: VisitContext):
         """
@@ -200,18 +200,18 @@ class ExprParser:
         # Check if variable has been actually declared/printed in current context or parent scopes
         if visit_ctx.is_scanning:
             try:
-                self.linter.get_var_type(name, scope=visit_ctx.scope)
+                self.typeinferencer.get_var_type(name, scope=visit_ctx.scope)
                 return True
-            except LinterError:
+            except typeinferencerError:
                 return False
 
-        return self.linter.does_has_type(name, scope=visit_ctx.scope)
+        return self.typeinferencer.does_has_type(name, scope=visit_ctx.scope)
 
     def visit_AnnAssign(self, node: ast.AnnAssign, visit_ctx: VisitContext):
         """
         Handle annotated assignments like `a: int = 1`
         """
-        type_ = self.linter.get_pytype_from_annotations(node.annotation)
+        type_ = self.typeinferencer.get_pytype_from_annotations(node.annotation)
         target = node.target
 
         repr_ctx = ReprVisitContext(
@@ -227,9 +227,9 @@ class ExprParser:
         if self.already_declared(target.id, visit_ctx):
             self.print_line(f"{target_str} = {value_str};", visit_ctx.current_indent)
         else:
-            self.linter.add_var(target_str, type_, scope=visit_ctx.scope)
+            self.typeinferencer.add_var(target_str, type_, scope=visit_ctx.scope)
             self.set_type(target_str, visit_ctx.scope)
-            self.print_line(f"{self.linter.python_to_cpp_type(type_)} {target_str} = {value_str};", visit_ctx.current_indent)
+            self.print_line(f"{self.typeinferencer.python_to_cpp_type(type_)} {target_str} = {value_str};", visit_ctx.current_indent)
 
     def visit_Assign(self, node: ast.Assign, visit_ctx: VisitContext):
         """
@@ -268,8 +268,8 @@ class ExprParser:
                     expr_node=node
                 )
                 type_name_val = self.repr.visit(value, repr_ctx)
-            cpp_type = self.linter.python_to_cpp_type(type_name_val)
-        except (LinterError, VisitorError) as e:
+            cpp_type = self.typeinferencer.python_to_cpp_type(type_name_val)
+        except (typeinferencerError, VisitorError) as e:
             type_var_err = e
 
         repr_ctx = ReprVisitContext(
@@ -325,7 +325,7 @@ class ExprParser:
 
                     for target_s in target_vars:
                         if not self.already_declared(target_s, visit_ctx):
-                            self.linter.add_var(target_s, real_element_type, scope=visit_ctx.scope)
+                            self.typeinferencer.add_var(target_s, real_element_type, scope=visit_ctx.scope)
                             self.set_type(target_s, visit_ctx.scope)
                     self.print_line(f"auto [{target_str}] = {value_str};", visit_ctx.current_indent)
             elif self.already_declared(target_str, visit_ctx) or \
@@ -335,7 +335,7 @@ class ExprParser:
                 if type_var_err is not None:
                     raise ParserError(str(type_var_err))
                 # Single variable, not declared yet
-                self.linter.add_var(target_str, type_name_val, scope=visit_ctx.scope)
+                self.typeinferencer.add_var(target_str, type_name_val, scope=visit_ctx.scope)
                 self.set_type(target_str, visit_ctx.scope)
 
                 repr_ctx = ReprVisitContext(
@@ -402,13 +402,13 @@ class ExprParser:
             expr_node=node
         )
         func_name: str = node.func.id
-        if func_name not in self.linter.funcs:
+        if func_name not in self.typeinferencer.funcs:
             # Assuming this is a builtin function
             new_ctx = repr_ctx.copy()
             new_ctx.parser_ctx.scope = ["global"]
             return self.repr.get_type_from_pyfunction(node, new_ctx)
             
-        func: Function = self.linter.funcs[func_name]
+        func: Function = self.typeinferencer.funcs[func_name]
         if func.return_pytype is not None:
             return func.return_pytype
 
@@ -421,8 +421,8 @@ class ExprParser:
         # During scanning phase, user functions are typically in global scope
         # Try to find the function scope, but handle case where it doesn't exist yet
         try:
-            new_visitctx.scope = self.linter.find_scope_by_var(func_name, findFunc=True, scope=visit_ctx.scope)
-        except LinterError:
+            new_visitctx.scope = self.typeinferencer.find_scope_by_var(func_name, findFunc=True, scope=visit_ctx.scope)
+        except typeinferencerError:
             # If function not found in scope system yet (during scanning), assume global scope
             if func.user_func:
                 new_visitctx.scope = ["global"]
@@ -440,13 +440,13 @@ class ExprParser:
             # Get the type from argument and pass it to parameter
             type_ = self.repr.visit(arg, arg_repr_ctx)
             if not isinstance(arg, ast.Call):
-                self.linter.add_var(func_param.arg, type_, scope=repr_ctx.parser_ctx.scope,is_param=True)
+                self.typeinferencer.add_var(func_param.arg, type_, scope=repr_ctx.parser_ctx.scope,is_param=True)
 
         # For keywords like a=1, b=(math.pi*2) something
         for arg, value in node.keywords:
             type_ = self.repr.visit(arg, arg_repr_ctx)
             if not isinstance(arg, ast.Call):
-                self.linter.add_var(arg, type_, scope=repr_ctx.parser_ctx.scope, is_param=True)
+                self.typeinferencer.add_var(arg, type_, scope=repr_ctx.parser_ctx.scope, is_param=True)
 
         # Now need to return the type by going to function definition
         # Use the scope we determined earlier
@@ -501,19 +501,19 @@ class ExprParser:
         """
         # print(visit_ctx, file=sys.stderr)
         
-        # Ensure the function scope exists in the linter
+        # Ensure the function scope exists in the typeinferencer
         # Initialize the nested scope path if it doesn't exist
-        cur_scope = self.linter.typed_vars
+        cur_scope = self.typeinferencer.typed_vars
         for s in visit_ctx.scope:
             if s not in cur_scope:
                 cur_scope[s] = {}
             cur_scope = cur_scope[s]
         
         def pytype_arg(name):
-            type_ = self.linter.get_var_type(name, scope=visit_ctx.scope)
+            type_ = self.typeinferencer.get_var_type(name, scope=visit_ctx.scope)
             return type_
         def ctype_arg(name):
-            return self.linter.python_to_cpp_type(pytype_arg(name))
+            return self.typeinferencer.python_to_cpp_type(pytype_arg(name))
         
 
         arguments = []
@@ -540,8 +540,8 @@ class ExprParser:
                     if expected_return_type == "None":
                         # Try to find function scope, but handle case where it doesn't exist yet
                         try:
-                            func_scope = self.linter.find_scope_by_var(name_func, findFunc=True, scope=visit_ctx.scope)
-                        except LinterError:
+                            func_scope = self.typeinferencer.find_scope_by_var(name_func, findFunc=True, scope=visit_ctx.scope)
+                        except typeinferencerError:
                             # If function not found in scope system yet, assume global scope
                             func_scope = ["global"]
                         
@@ -552,7 +552,7 @@ class ExprParser:
                             is_scanning = visit_ctx.is_scanning
                         )
                         expected_return_type = self.visit(return_val, new_ctx)
-                        self.linter.funcs[node.name].return_pytype = expected_return_type
+                        self.typeinferencer.funcs[node.name].return_pytype = expected_return_type
                 else:
                     if expected_return_type == "None":
                         repr_ctx = ReprVisitContext(
@@ -562,7 +562,7 @@ class ExprParser:
                             expr_node=node   
                         )
                         expected_return_type = self.repr.visit(return_val, repr_ctx)
-                        self.linter.funcs[node.name].return_pytype = expected_return_type
+                        self.typeinferencer.funcs[node.name].return_pytype = expected_return_type
 
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
@@ -573,7 +573,7 @@ class ExprParser:
             self.visit(expr, new_ctx)
             
         # PRINT FORMAT FUCNTION
-        self.print_line(f"{self.linter.python_to_cpp_type(expected_return_type)} {node.name}({', '.join(arguments)}) {{", visit_ctx.current_indent)
+        self.print_line(f"{self.typeinferencer.python_to_cpp_type(expected_return_type)} {node.name}({', '.join(arguments)}) {{", visit_ctx.current_indent)
         for expr in node.body:
             new_ctx = VisitContext(
                 current_indent = visit_ctx.current_indent + 1,
@@ -584,7 +584,7 @@ class ExprParser:
         self.print_line("}", visit_ctx.current_indent)
         
         if expected_return_type == "None":
-            self.linter.funcs[node.name].return_pytype = expected_return_type
+            self.typeinferencer.funcs[node.name].return_pytype = expected_return_type
         return expected_return_type
 
     def print_for_i(self, var: str, node: ast.Call, visit_ctx: VisitContext, save_type, node_for: ast.For):
@@ -613,7 +613,7 @@ class ExprParser:
             # Create the for loop scope
             for_scope_name = f"for_{id(node_for)}"
             new_scope = visit_ctx.scope + [for_scope_name]
-            self.linter.add_var(var, "int", scope=new_scope)
+            self.typeinferencer.add_var(var, "int", scope=new_scope)
         start = 0
         end = None
         step = 1
@@ -680,12 +680,12 @@ class ExprParser:
             iter_return_type = iter_return_type[1:]
             if len(iter_return_type) == 1:
                 iter_return_type = iter_return_type[0]
-        cpp_type = self.linter.python_to_cpp_type(iter_return_type)
+        cpp_type = self.typeinferencer.python_to_cpp_type(iter_return_type)
         if save_type:
             # Create the for loop scope
             for_scope_name = f"for_{id(node_for)}"
             new_scope = visit_ctx.scope + [for_scope_name]
-            self.linter.add_var(var, iter_return_type, scope=new_scope)
+            self.typeinferencer.add_var(var, iter_return_type, scope=new_scope)
         self.print_line(f"for ({cpp_type} {var} : {self.repr.visit(node, repr_ctx_2)}) {{", visit_ctx.current_indent)
 
     def print_forloop(self, node: ast.For, visit_ctx: VisitContext, save_type=True):
@@ -726,7 +726,7 @@ class ExprParser:
         self.num_for += 1
         self.print_forloop(node, visit_ctx)
 
-        # Add this target to the scope linter
+        # Add this target to the scope typeinferencer
         repr_ctx = ReprVisitContext(
             processor=self,
             parser_ctx=visit_ctx,

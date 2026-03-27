@@ -191,8 +191,8 @@ class SecurityUtils:
         if isinstance(error, ParsingErrors.VisitorError):
             return "My repr visitor (ReprVisitor) has an error\n" + str(error)
 
-        if isinstance(error, ParsingErrors.LinterError):
-            return "My linter (Linter) has an error\n" + str(error)
+        if isinstance(error, ParsingErrors.typeinferencerError):
+            return "My typeinferencer (typeinferencer) has an error\n" + str(error)
         
         if isinstance(error, SecurityError):
             return str(error)  # Security errors are safe to expose

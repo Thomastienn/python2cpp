@@ -99,16 +99,16 @@ def parse(tree):
     except Exception as e:
         raise (type(e))(f"Error while scanning the AST: {e}") from e
 
-    # print(printer.linter.funcs, file=sys.stderr)
+    # print(printer.typeinferencer.funcs, file=sys.stderr)
     # JUST A HEADER LIB
     print(HEADER)
 
-    print("\n// All the variables I assume you want to be global\n" if len(printer.linter.actual_global_vars) > 0 else "", end="")
+    print("\n// All the variables I assume you want to be global\n" if len(printer.typeinferencer.actual_global_vars) > 0 else "", end="")
     # All the actual global variables
-    for var in printer.linter.actual_global_vars:
+    for var in printer.typeinferencer.actual_global_vars:
         if var.pytype is None:
             var.pytype = "auto"
-        print(f"{printer.linter.python_to_cpp_type(var.pytype)} {var.name};")
+        print(f"{printer.typeinferencer.python_to_cpp_type(var.pytype)} {var.name};")
 
     # ALL TEMPLATES USED
     print("\n// Just my templates to replace python functions" if len(Utils.template_uses) > 0  else "",end="")
@@ -132,8 +132,8 @@ def parse(tree):
     print(TAB + "return 0;")
     print("}")
 
-    # print(printer.linter.typed_vars, file=sys.stderr)
-    # print(printer.linter.funcs, file=sys.stderr)
+    # print(printer.typeinferencer.typed_vars, file=sys.stderr)
+    # print(printer.typeinferencer.funcs, file=sys.stderr)
 
     printer.visit_Str("DEBUG", VisitContext(allow_print=False))
     Utils.template_uses.clear()

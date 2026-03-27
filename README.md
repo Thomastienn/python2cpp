@@ -291,7 +291,7 @@ python2cpp/
 ├── py2c/
 │   ├── commands/        # CLI, parser, LLM fallback
 │   ├── core/            # AST processor, visitor, structures
-│   └── utils/           # Templates, linter, constants
+│   └── utils/           # Templates, typeinferencer, constants
 ├── webbackend/          # FastAPI server
 └── webfrontend/         # React + Vite + Monaco
 ```

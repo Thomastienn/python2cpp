@@ -5,10 +5,10 @@ from copy import deepcopy
 from collections import defaultdict
 
 from py2c.core.structure import Function, Variable
-from py2c.core.errors import LinterError, UserError
+from py2c.core.errors import typeinferencerError, UserError
 
 
-class Linter:
+class TypeInferencer:
     """
     Type checking and variable management system for Python to C++ conversion.
     
@@ -54,7 +54,7 @@ class Linter:
 
     def __init__(self, funcs: dict[str, Function]):
         """
-        Initialize the linter with function definitions.
+        Initialize the typeinferencer with function definitions.
         
         Args:
             funcs (dict[str, Function]): Dictionary mapping function names to Function objects
@@ -169,12 +169,12 @@ class Linter:
             scope (list[str]): Scope path where the variable is located
         
         Raises:
-            LinterError: If the scope is not found
+            typeinferencerError: If the scope is not found
         """
         cur_scope = self.has_typed
         for s in scope:
             if s not in cur_scope:
-                raise LinterError(f"Scope {s} not found in {scope}")
+                raise typeinferencerError(f"Scope {s} not found in {scope}")
             cur_scope = cur_scope[s]
         cur_scope[name] = False
 
@@ -187,12 +187,12 @@ class Linter:
             scope (list[str]): Scope path where the variable is located
         
         Raises:
-            LinterError: If the scope is not found
+            typeinferencerError: If the scope is not found
         """
         cur_scope = self.typed_vars
         for s in scope:
             if s not in cur_scope:
-                raise LinterError(f"Scope {s} not found in {scope}")
+                raise typeinferencerError(f"Scope {s} not found in {scope}")
             cur_scope = cur_scope[s]
         del cur_scope[name]
 
@@ -228,14 +228,14 @@ class Linter:
             Variable | tuple[Variable, list[str]]: Variable object or tuple with scope
         
         Raises:
-            LinterError: If the variable is not found
+            typeinferencerError: If the variable is not found
         """
         cur = self.typed_vars
         st = []
         debug_st = []
         for s in scope:
             if s not in cur:
-                raise LinterError(f"Scope {s} not found in {scope}, stop finding {name}, current stack {cur}, current scope stack {debug_st}, all vars:  \n\n{self.typed_vars}\n\n")
+                raise typeinferencerError(f"Scope {s} not found in {scope}, stop finding {name}, current stack {cur}, current scope stack {debug_st}, all vars:  \n\n{self.typed_vars}\n\n")
             cur = cur[s]
             st.append(cur)
             debug_st.append(s)
@@ -268,7 +268,7 @@ class Linter:
         if result is not None:
             return result
 
-        raise LinterError(f"Variable {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {debug_st}, all vars:  \n\n{self.typed_vars}\n\n")
+        raise typeinferencerError(f"Variable {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {debug_st}, all vars:  \n\n{self.typed_vars}\n\n")
 
     def get_var_type(self, name, scope=["global"]) -> str | list[str]:
         """
@@ -290,14 +290,14 @@ class Linter:
             scope: The current scope we are in
         """
         if findVar == findFunc:
-            raise LinterError("You must specify either findVar or findFunc, not both")
+            raise typeinferencerError("You must specify either findVar or findFunc, not both")
 
         cur = self.typed_vars
         st = []
         st_str = []
         for s in scope:
             if s not in cur:
-                raise LinterError(f"Scope {s} not found in {scope}, stop finding {name}, current stack {cur}, current scope stack {st_str}, all vars:  \n\n{self.typed_vars}\n\n")
+                raise typeinferencerError(f"Scope {s} not found in {scope}, stop finding {name}, current stack {cur}, current scope stack {st_str}, all vars:  \n\n{self.typed_vars}\n\n")
             cur = cur[s]
             st.append(cur)
             st_str.append(s)
@@ -311,7 +311,7 @@ class Linter:
                 if findFunc and isinstance(s[name], dict):
                     return deepcopy(st_str)
         
-        raise LinterError(f"Variable/Function {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {st_str}, all vars:  \n\n{self.typed_vars}\n\n")
+        raise typeinferencerError(f"Variable/Function {name} not found in scope {scope} and upper, current stack {cur}, current scope stack {st_str}, all vars:  \n\n{self.typed_vars}\n\n")
 
     def add_func(self, name, f_type):
         """
@@ -352,10 +352,10 @@ class Linter:
             return "void"
         if isinstance(t_name, list):
             return f"{self.python_to_cpp_type(t_name[0])}<{', '.join(self.python_to_cpp_type(t) for t in t_name[1:])}>"
-        if t_name in Linter.CAST_TYPES:
-            return Linter.CAST_TYPES[t_name]
-        if t_name in Linter.TYPES:
-            return Linter.TYPES[t_name]
+        if t_name in TypeInferencer.CAST_TYPES:
+            return TypeInferencer.CAST_TYPES[t_name]
+        if t_name in TypeInferencer.TYPES:
+            return TypeInferencer.TYPES[t_name]
             
         raise NotImplementedError(f"Type {t_name} not implemented", type(t_name))
 
@@ -442,11 +442,11 @@ class Linter:
             str: The inferred result type of the binary operation
         """
         if not isinstance(pytype_left, list) and \
-            pytype_left not in Linter.TYPES and \
+            pytype_left not in TypeInferencer.TYPES and \
             pytype_left != "Unknown":
             pytype_left = self.get_var_type(pytype_left)
         if not isinstance(pytype_right, list) and \
-            pytype_right not in Linter.TYPES and \
+            pytype_right not in TypeInferencer.TYPES and \
             pytype_right != "Unknown":
             pytype_right = self.get_var_type(pytype_right)
         
@@ -474,7 +474,7 @@ class Linter:
         if isinstance(annotations, ast.Subscript):
             base = annotations.value
             if not isinstance(base, ast.Name):
-                raise LinterError(f"Subscript base should be a Name, got {type(base)}")
+                raise typeinferencerError(f"Subscript base should be a Name, got {type(base)}")
             base_type = base.id
             type_ = self.get_pytype_from_annotations(annotations.slice)
             if isinstance(annotations.slice, ast.Tuple):

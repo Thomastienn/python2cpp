@@ -16,8 +16,8 @@ License: MIT
 import sys
 import ast
 
-from py2c.utils.linter import Linter
-from py2c.core.errors import LinterError
+from py2c.utils.typeinferencer import TypeInferencer
+from py2c.core.errors import typeinferencerError
 
 
 class ScopeHandler:
@@ -29,7 +29,7 @@ class ScopeHandler:
     """
     
     @staticmethod
-    def additional_scope(node: ast.AST, current_scope: list[str], linter: Linter) -> list[str]:
+    def additional_scope(node: ast.AST, current_scope: list[str], typeinferencer: TypeInferencer) -> list[str]:
         """
         Determine the appropriate scope for an AST node.
         
@@ -40,7 +40,7 @@ class ScopeHandler:
         Args:
             node (ast.AST): The AST node to analyze
             current_scope (list[str]): Current scope path
-            linter (Linter): The linter instance for scope lookups
+            typeinferencer (typeinferencer): The typeinferencer instance for scope lookups
         
         Returns:
             list[str]: The appropriate scope path for the node
@@ -57,19 +57,19 @@ class ScopeHandler:
                 func_name = node.func.attr
             assert func_name is not None, f"Function node is node {node.func}"
 
-            # Check if function exists in linter's funcs dict first
+            # Check if function exists in typeinferencer's funcs dict first
             # If it's a user function, it should be in the same scope as where it was defined
-            if func_name in linter.funcs:
+            if func_name in typeinferencer.funcs:
                 # User-defined functions are typically in global scope
-                if linter.funcs[func_name].user_func:
+                if typeinferencer.funcs[func_name].user_func:
                     return ["global"]  # User functions are in global scope
                 else:
                     return current_scope  # Template functions use current scope
             
             # Try to find the function in scope system, but handle case where it doesn't exist yet
             try:
-                return linter.find_scope_by_var(func_name, findVar=False, findFunc=True, scope=current_scope)
-            except LinterError:
+                return typeinferencer.find_scope_by_var(func_name, findVar=False, findFunc=True, scope=current_scope)
+            except typeinferencerError:
                 # If function not found in scope system yet (during scanning), assume global scope
                 return ["global"]
         # if isinstance(node, ast.If):

@@ -25,7 +25,7 @@ def _make_test(file, root, output_dir):
 
 # --- Dynamically attach one test method per .py file ---
 cur_path = os.path.dirname(os.path.abspath(__file__))
-ROOT = cur_path[:cur_path.rfind("py2cpp") + len("py2cpp")]
+ROOT = cur_path[:cur_path.rfind("python2cpp") + len("python2cpp")]
 test_dir = os.path.join(ROOT, "test_pythons")
 output_dir = os.path.join(ROOT, "test_out")
 

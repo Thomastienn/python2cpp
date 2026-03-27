@@ -11,7 +11,7 @@ Python AST nodes into their C++ string representations. It handles:
 - Function call processing
 - Literal value conversions
 
-The ReprVisitor works closely with the Linter class to perform type checking
+The ReprVisitor works closely with the typeinferencer class to perform type checking
 and variable resolution during the conversion process.
 
 Author: Thomas Tien
@@ -24,14 +24,14 @@ import ast
 import io
 from copy import deepcopy
 
-from py2c.utils.linter import Linter
+from py2c.utils.typeinferencer import TypeInferencer
 from py2c.utils.utils import Utils
 from py2c.utils.constants import TAB
 from py2c.utils.template import CPPTemplate
 from py2c.core.structure import ReprVisitContext, VisitContext, Variable
 from py2c.utils.scope_handler import ScopeHandler
 from py2c.utils.logger import setup_logger
-from py2c.core.errors import VisitorError, UserError, LinterError
+from py2c.core.errors import VisitorError, UserError, typeinferencerError
 
 
 class ReprVisitor():
@@ -43,7 +43,7 @@ class ReprVisitor():
     manages the generation of appropriate C++ code for various Python features.
     
     Attributes:
-        linter (Linter): The linter instance for type checking and variable management
+        typeinferencer (typeinferencer): The typeinferencer instance for type checking and variable management
         logger (Logger): Logger instance for debugging and error reporting
     
     Key responsibilities:
@@ -55,14 +55,14 @@ class ReprVisitor():
         - Managing function calls and method invocations
     """
     
-    def __init__(self, linter: Linter):
+    def __init__(self, typeinferencer: TypeInferencer):
         """
         Initialize the representation visitor.
         
         Args:
-            linter (Linter): The linter instance for type checking and variable management
+            typeinferencer (typeinferencer): The typeinferencer instance for type checking and variable management
         """
-        self.linter = linter
+        self.typeinferencer = typeinferencer
         self.logger = setup_logger("py2cpp.visitor")
 
     def get_type_from_pyfunction(self, func_node: ast.Call, repr_ctx: ReprVisitContext) -> str:
@@ -86,7 +86,7 @@ class ReprVisitor():
             - Iterator functions (map)
         """
         func_name = func_node.func.id
-        if func_name in Linter.TYPES:
+        if func_name in TypeInferencer.TYPES:
             if func_name == "list":
                 type_arg = self.visit(func_node.args[0], repr_ctx)
                 return ["list"] + type_arg[1:] if isinstance(type_arg, list) else ["list", type_arg]
@@ -163,8 +163,8 @@ class ReprVisitor():
         if repr_ctx.return_type:
             return type(node.value).__name__
         node_repr = repr(node.value)
-        if node_repr in Linter.MAP_VALUE:
-            return Linter.MAP_VALUE[node_repr]
+        if node_repr in TypeInferencer.MAP_VALUE:
+            return TypeInferencer.MAP_VALUE[node_repr]
         return node_repr.replace("\'", "\"")
 
     def check_add_global_var(self, var_name: str, repr_ctx: ReprVisitContext):
@@ -181,8 +181,8 @@ class ReprVisitor():
         if not repr_ctx.parser_ctx.is_scanning:
             return
         try:
-            var, scope_found = self.linter.get_var(var_name, repr_ctx.parser_ctx.scope, return_scope_found=True)
-        except LinterError:
+            var, scope_found = self.typeinferencer.get_var(var_name, repr_ctx.parser_ctx.scope, return_scope_found=True)
+        except typeinferencerError:
             return
 
         if not isinstance(var, Variable):
@@ -192,8 +192,8 @@ class ReprVisitor():
             ScopeHandler.is_in_function_scope(repr_ctx.parser_ctx.scope) and \
             (scope_found == "global" or (isinstance(scope_found, list) and scope_found[-1] == "global")) and \
             var.is_param is False:
-            self.linter.set_has_type(var_name, ["global"])
-            self.linter.actual_global_vars.add(var)
+            self.typeinferencer.set_has_type(var_name, ["global"])
+            self.typeinferencer.actual_global_vars.add(var)
 
     def visit_Name(self, node: ast.Name, repr_ctx: ReprVisitContext):
         """
@@ -213,11 +213,11 @@ class ReprVisitor():
             
         if repr_ctx.return_type:
             try:
-                var = self.linter.get_var(node.id, repr_ctx.parser_ctx.scope)
+                var = self.typeinferencer.get_var(node.id, repr_ctx.parser_ctx.scope)
                 var: Variable
                 var_type = var.pytype
                 return var_type
-            except LinterError:
+            except typeinferencerError:
                 # During scanning phase, variables might not be defined yet
                 # Return a placeholder type that can be resolved later
                 if repr_ctx.parser_ctx.is_scanning:
@@ -300,7 +300,7 @@ class ReprVisitor():
         if isinstance(node.slice, ast.Slice):
             final_type = self.visit(node.value, get_type_ctx)
         else:
-            final_type = self.linter.get_subscript_type(result, len(access), scope=repr_ctx.parser_ctx.scope)
+            final_type = self.typeinferencer.get_subscript_type(result, len(access), scope=repr_ctx.parser_ctx.scope)
 
         if repr_ctx.return_type:
             # Use string for all char and convert them down below
@@ -336,7 +336,7 @@ class ReprVisitor():
                     final_length = int(high)-int(low) if high.isdigit() else f"{high}-{low}"
                     return f"{result}.substr({low}, {final_length})"
                 if isinstance(final_type, list) and final_type[0] == "list":
-                    return f"{self.linter.python_to_cpp_type(final_type)}({result}.begin() + {low}, {result}.begin() + {high})"
+                    return f"{self.typeinferencer.python_to_cpp_type(final_type)}({result}.begin() + {low}, {result}.begin() + {high})"
                 
 
     def visit_BinOp(self, node: ast.BinOp, repr_ctx: ReprVisitContext):
@@ -368,7 +368,7 @@ class ReprVisitor():
         type_right = self.visit(node.right, get_type_ctx)
         op_repr = self.visit_op(node.op)
         if repr_ctx.return_type:
-            return self.linter.get_binop_type(type_left, type_right, op_repr)
+            return self.typeinferencer.get_binop_type(type_left, type_right, op_repr)
 
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
@@ -390,7 +390,7 @@ class ReprVisitor():
         node_right_repr = self.visit(node.right, new_ctx)
         
         if isinstance(node.op, ast.Mult):
-            if self.linter.is_list_repeatition(type_left, type_right, op_repr):
+            if self.typeinferencer.is_list_repeatition(type_left, type_right, op_repr):
                 if isinstance(type_left, list) and type_left[0] == "list":
                     list_type = type_left
                     int_type = type_right
@@ -441,7 +441,7 @@ class ReprVisitor():
         type_left = self.visit(node.left, get_type_ctx)
         type_right = self.visit(node.right, get_type_ctx)
 
-        return self.linter.is_list_repeatition(type_left, type_right, "*")
+        return self.typeinferencer.is_list_repeatition(type_left, type_right, "*")
 
     def handle_pyfunc(self, node: ast.Call, repr_ctx: ReprVisitContext):
         """
@@ -503,17 +503,17 @@ class ReprVisitor():
             # We can use a for loop if it's just casting values
             arg1 = self.visit(node.args[0], new_ctx)
             arg2 = self.visit(node.args[1], new_ctx)
-            if arg1 in Linter.TYPES:
+            if arg1 in TypeInferencer.TYPES:
                 context_node = repr_ctx.expr_node
                 type_arg2 = self.visit(ast.parse(arg2).body[0].value, get_type_ctx)
-                cpp_type_arg2 = self.linter.python_to_cpp_type(type_arg2)
+                cpp_type_arg2 = self.typeinferencer.python_to_cpp_type(type_arg2)
                 result = "[&] {\n"
                 result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}vector<{arg1}>temp;\n"
                 result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}{cpp_type_arg2} arg2 = {arg2};\n"
                 result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}for (int i = 0; i < arg2.size(); i++){{\n"
 
                 cast_node = ast.parse(f"{arg1}(arg2[i])").body[0].value
-                self.linter.add_var("arg2", type_arg2, scope=repr_ctx.parser_ctx.scope)
+                self.typeinferencer.add_var("arg2", type_arg2, scope=repr_ctx.parser_ctx.scope)
                 result += f"{TAB * (repr_ctx.parser_ctx.current_indent+2)}temp.push_back({self.visit(cast_node, new_ctx)});\n"
                 result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}}}\n"
                 if isinstance(context_node, ast.Assign) and isinstance(context_node.targets[0], ast.Tuple):
@@ -529,13 +529,13 @@ class ReprVisitor():
             template_name: str = CPPTemplate.CMAP.name
             Utils.template_uses.add(template_name)
             return f"{template_name.lower()}({self.visit(node.args[0], new_ctx)}, {self.visit(node.args[1], new_ctx)})"
-        if func_name in Linter.TYPES:
+        if func_name in TypeInferencer.TYPES:
             type_other = self.visit(node.args[0], get_type_ctx)
             if type_other == "str" and func_name == "int":
                 return f"stoi({self.visit(node.args[0], new_ctx)})"
             if type_other == "int" and func_name == "str":
                 return f"to_string({self.visit(node.args[0], new_ctx)})"
-            return f"({Linter.TYPES[func_name]}) ({self.visit(node.args[0], new_ctx)})"
+            return f"({TypeInferencer.TYPES[func_name]}) ({self.visit(node.args[0], new_ctx)})"
         if func_name == "ord":
             type_arg = self.visit(node.args[0], get_type_ctx)
             if type_arg == "char":
@@ -551,7 +551,7 @@ class ReprVisitor():
         if func_name == "reversed":
             if isinstance(node.args[0], ast.Name):
                 type_ = self.visit(node.args[0], get_type_ctx)
-                cpp_type_ = self.linter.python_to_cpp_type(type_)
+                cpp_type_ = self.typeinferencer.python_to_cpp_type(type_)
                 return f"{cpp_type_}({self.visit(node.args[0], new_ctx)}.rbegin(), {self.visit(node.args[0], new_ctx)}.rend())"
             else:
                 template_name: str = CPPTemplate.CREV.name
@@ -592,11 +592,11 @@ class ReprVisitor():
                 cur_func = cur_func.func
 
             if isinstance(cur_func, ast.Name):
-                if cur_func.id in self.linter.funcs:
-                    return self.linter.funcs[cur_func.id].return_pytype
+                if cur_func.id in self.typeinferencer.funcs:
+                    return self.typeinferencer.funcs[cur_func.id].return_pytype
                 return self.get_type_from_pyfunction(node, repr_ctx)
             if isinstance(cur_func, ast.Attribute):
-                return self.linter.get_attr_type("Unknown", cur_func.attr)
+                return self.typeinferencer.get_attr_type("Unknown", cur_func.attr)
                 
                 self.logger.error("Call %s not implemented", cur_func)
                 raise NotImplementedError(f"Call {cur_func} not implemented")
@@ -665,7 +665,7 @@ class ReprVisitor():
                 expr_node = repr_ctx.expr_node
             )
             type_ = self.visit(node.value, new_ctx)
-            return self.linter.get_attr_type(type_, node.attr)
+            return self.typeinferencer.get_attr_type(type_, node.attr)
             
         new_ctx = ReprVisitContext(
             processor=repr_ctx.processor,
@@ -756,7 +756,7 @@ class ReprVisitor():
             full_new_scope = repr_ctx.parser_ctx.scope + [new_scope]
 
             # WARNING: This is a hack, fix in the future
-            self.linter.add_var("temp", "Unknown", scope=full_new_scope)
+            self.typeinferencer.add_var("temp", "Unknown", scope=full_new_scope)
             repr_ctx.processor.visit(ast.Assign(
                 targets=[ast.Name(id="temp", ctx=ast.Store())],
                 value=node.elt
@@ -764,13 +764,13 @@ class ReprVisitor():
                 current_indent=local_indent,
                 scope=full_new_scope
             ))
-            temp_type = self.linter.get_var_type("temp", scope=full_new_scope)
-            self.linter.remove_var("temp", scope=full_new_scope)
+            temp_type = self.typeinferencer.get_var_type("temp", scope=full_new_scope)
+            self.typeinferencer.remove_var("temp", scope=full_new_scope)
             return temp_type
             
         assign_body, temp_type = Utils.capture_output(assign_to, include_return=True)
         parent_type = ["list", temp_type]
-        cpp_type = self.linter.python_to_cpp_type(parent_type)
+        cpp_type = self.typeinferencer.python_to_cpp_type(parent_type)
         result += f"{TAB * (repr_ctx.parser_ctx.current_indent+1)}{cpp_type} parent;\n"
         result += gens_str
         result += assign_body

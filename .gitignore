@@ -14,3 +14,5 @@ debug*
 # Security logs (keep these for monitoring but exclude from git)
 security.log
 webbackend/src/security.log
+
+build/

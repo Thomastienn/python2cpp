@@ -10,7 +10,7 @@ Exception Hierarchy:
 - UserError: Errors in user's Python code
 - ParserError: Errors in AST processing
 - VisitorError: Errors in code generation
-- LinterError: Errors in type checking and validation
+- typeinferencerError: Errors in type checking and validation
 
 Author: Thomas Tien
 Project: py2cpp - Python to C++ Converter
@@ -58,11 +58,11 @@ class VisitorError(Exception):
     pass
 
 
-class LinterError(Exception):
+class typeinferencerError(Exception):
     """
-    Base exception class for the linter.
+    Base exception class for the typeinferencer.
     
-    This exception is raised when the linter encounters an error during
+    This exception is raised when the typeinferencer encounters an error during
     type checking, variable resolution, or scope management.
     """
     pass
